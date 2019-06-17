@@ -1,0 +1,30 @@
+! ------------------------------------------------------------------------------
+!                      ROFI Settings
+! ------------------------------------------------------------------------------
+
+! General
+rofi.font:                  Cica 11.5
+rofi.fake-transparency:     true
+rofi.hide-scrollbar:        true
+rofi.modi:                  drun,run,system:~/.config/rofi/rofi-system.sh
+
+! Layout
+rofi.width:                 64
+rofi.column:                4
+rofi.location:              0
+rofi.lines:                 13
+rofi.sidebar-mode:          true
+rofi.fullscreen:            false
+rofi.show-icons:            true
+rofi.drun-icon-theme:       pop
+rofi.padding:               10
+
+
+! ------------------------------------------------------------------------------
+!                      ROFI Color theme
+! ------------------------------------------------------------------------------
+rofi.color-window: #1d2120, #1d2120, #458588
+rofi.color-normal: #1d2120, #ebdbb2, #1d2120, #458588, #1d2120
+rofi.color-active: #1d2120, #ebdbb2, #1d2120, #458588, #1d2120
+rofi.color-urgent: #1d2120, #69584E, #1d2120, #69584E, #ebdbb2
+

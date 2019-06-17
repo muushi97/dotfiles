@@ -1,0 +1,237 @@
+-------------------------------------------------------------------------------
+--                  __  ____  __                       _                     --
+--                  \ \/ /  \/  | ___  _ __   __ _  __| |                    --
+--                   \  /| |\/| |/ _ \| '_ \ / _` |/ _` |                    --
+--                   /  \| |  | | (_) | | | | (_| | (_| |                    --
+--                  /_/\_\_|  |_|\___/|_| |_|\__,_|\__,_|                    --
+--                                                                           --
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Import modules                                                           {{{
+-------------------------------------------------------------------------------
+import System.Cmd
+import Data.List(isPrefixOf, find, sort, sortBy)
+import Data.Maybe
+
+--import Config
+
+import qualified Data.Map as M
+import qualified XMonad.StackSet as W
+import Control.Monad (liftM2)          -- myManageHookShift
+import Data.Monoid
+import System.IO                       -- for xmobar
+import XMonad.Config.Desktop (desktopLayoutModifiers)
+
+import XMonad
+import qualified XMonad.StackSet as W  -- myManageHookShift
+
+import XMonad.Actions.CopyWindow
+import XMonad.Actions.CycleWS
+import qualified XMonad.Actions.FlexibleResize as Flex -- flexible resize
+import XMonad.Actions.FloatKeys
+import XMonad.Actions.UpdatePointer
+import XMonad.Actions.WindowGo
+
+import XMonad.Hooks.DynamicLog         -- for xmobar
+import XMonad.Hooks.EwmhDesktops
+import XMonad.Hooks.ManageDocks        -- avoid xmobar area
+import XMonad.Hooks.ManageHelpers
+import XMonad.Hooks.FadeInactive       -- xcompmgr での透過に使う
+
+import XMonad.Layout
+import XMonad.Layout.DragPane          -- see only two window
+import XMonad.Layout.Gaps
+import XMonad.Layout.NoBorders         -- In Full mode, border is no use
+import XMonad.Layout.PerWorkspace      -- Configure layouts on a per-workspace
+import XMonad.Layout.ResizableTile     -- Resizable Horizontal border
+import XMonad.Layout.MultiToggle
+import XMonad.Layout.MultiToggle.Instances
+import XMonad.Layout.Simplest
+import XMonad.Layout.SimplestFloat
+import XMonad.Layout.Spacing           -- this makes smart space around windows
+import XMonad.Layout.ToggleLayouts     -- Full window at any time
+import XMonad.Layout.TwoPane
+import XMonad.Layout.Named             -- named layout
+
+import XMonad.Prompt
+import XMonad.Prompt.Window            -- pops up a prompt with window names
+import XMonad.Util.EZConfig            -- removeKeys, additionalKeys
+import XMonad.Util.Run
+import XMonad.Util.Run(spawnPipe)      -- spawnPipe, hPutStrLn
+import XMonad.Util.SpawnOnce
+import XMonad.Util.WorkspaceCompare
+
+import XMonad.Actions.CycleWS
+
+import Graphics.X11.ExtraTypes.XF86
+
+import XMonad.Actions.Navigation2D
+import XMonad.Hooks.UrgencyHook
+
+import qualified DBus as D
+import qualified DBus.Client as D
+import qualified Codec.Binary.UTF8.String as UTF8
+
+
+--------------------------------------------------------------------------- }}}
+-- local variables                                                          {{{
+-------------------------------------------------------------------------------
+modm = mod4Mask
+
+-- Color Setting
+colorBarbg     = "#2e2930"
+colorActive    = "#a8bf93"
+colorNonActive = "#769164"
+
+-- Border width
+borderwidth = 0
+
+
+--------------------------------------------------------------------------- }}}
+-- main                                                                     {{{
+-------------------------------------------------------------------------------
+main :: IO ()
+main = do
+    --wsbar <- spawnPipe "xmobar $HOME/.xmonad/xmobarrc"
+    dbus <- D.connectSession
+    -- Request access to the DBus name
+    D.requestName dbus (D.busName_ "org.xmonad.Log")
+        [D.nameAllowReplacement, D.nameReplaceExisting, D.nameDoNotQueue]
+    xmonad . withUrgencyHook NoUrgencyHook . withNavigation2DConfig defaultNavigation2DConfig . docks . ewmh $ defaultConfig                                   -- docks (for xmobar), ewmh (for libreoffice ,etc...)
+        { borderWidth        = borderwidth                                   -- border width
+        --, terminal           = "urxvtc; if [ $? -eq 2 ]; then urxvtd -q -o -f; urxvtc; fi"                                       -- terminal
+        , terminal           = "termite"                                     -- terminal
+        , normalBorderColor  = colorNonActive                                -- border color then active
+        , focusedBorderColor = colorActive                                   -- border color then non active
+        , workspaces         = myWorkspaces
+        , modMask            = modm                                          -- mod key
+        , startupHook        = do
+                                 spawn "xscreensaver -no-splash"                 -- start up program
+                                 spawn "~/.config/polybar/polybar-restart"
+        , layoutHook         = myLayout                  -- layout
+         -- xmobar setting
+        , logHook            = do
+                                --myLogHook wsbar >> updatePointer (0.5, 0.5) (0, 0)
+                                fadeInactiveLogHook 0xdddddddd
+                                dynamicLogWithPP (myDbusHook dbus)
+        , mouseBindings      = newMouse
+        }
+
+
+-------------------------------------------------------------------- }}}
+-- Keymap: window operations                                         {{{
+------------------------------------------------------------------------
+        `additionalKeysP`
+        [ ("M-f", sendMessage ToggleLayout)
+        , ("M-s", spawn "xscreensaver-command --lock")
+        , ("M-p", spawn "rofi -show drun")
+        , ("M-S-r", do
+            spawn "~/alias/display.sh auto"
+            screenWorkspace 1 >>= flip whenJust (windows.W.view)
+            (windows . W.greedyView) "8"
+            screenWorkspace 0 >>= flip whenJust (windows.W.view)
+            (windows . W.greedyView) "1")
+        , ("M-n", moveTo Next validWS)
+        , ("M-b", moveTo Prev validWS)
+        -- 以下ゴミs
+        -- , ("M-r", (withWindowSet $ \ws -> return . map $ (W.tag &&& W.integrate' . W.stack) (W.workspaces ws)))
+        --, ("M-r", if W.view == 1 then (windows . W.greedyView) "2" else (windows . W.greedyView) "1")
+        ]
+
+validWSName :: String -> Bool
+validWSName "NSP" = False
+validWSName name
+    | "Shy" `isPrefixOf` name = False
+    | otherwise               = True
+
+validWS :: WSType
+validWS = WSIs $ return validWS'
+
+validWS' :: W.Workspace WorkspaceId l a -> Bool
+--validWS' w = validWSName (W.tag w) && isJust (W.stack w)
+validWS' w = validWSName (W.tag w)
+  where
+
+
+-- W.workspaces 全部のワークスペース見れる
+-- W.screens 全部のスクリーン見れる
+
+
+
+--------------------------------------------------------------------------- }}}
+-- newMouse:          Right click is used for resizing window               {{{
+-------------------------------------------------------------------------------
+myMouse x = [ ((modm, button3), (\w -> focus w >> Flex.mouseResizeWindow w)) ]
+newMouse x = M.union (mouseBindings defaultConfig x) (M.fromList (myMouse x))
+
+
+-------------------------------------------------------------------- }}}
+-- Workspaces:                                                       {{{
+------------------------------------------------------------------------
+myWorkspaces = ["1", "2", "3", "4", "5", "6", "7", "8"]
+
+
+--------------------------------------------------------------------------- }}}
+-- myLayout:          Handle Window behaveior                               {{{
+-------------------------------------------------------------------------------
+gapwidth = 3
+gwU = 15                                                                -- upper gap
+gwD = 15                                                                -- downer gap
+gwL = 12                                                                -- left gap
+gwR = 12                                                                -- right gap
+tall = (ResizableTall 1 (3/100) (3/5) [])
+vertical = tall
+horizontal = Mirror tall
+myLayout = toggleLayouts ( noBorders $ named "F" Full ||| avoidStruts( named "F" Full) )
+            $ avoidStruts( gaps [(U, gwU),(D, gwD),(L, gwL),(R, gwR)]
+            $ (named "H" $ spacing gapwidth $ horizontal) ||| ( named "V" $ spacing gapwidth $ vertical ) ||| ( named "S" $ spacing gapwidth $ Simplest ) )
+
+
+--------------------------------------------------------------------------- }}}
+-- myLogHook:         loghock settings                                      {{{
+-------------------------------------------------------------------------------
+myLogHook h = dynamicLogWithPP $ wsPP { ppOutput = hPutStrLn h}
+
+
+--------------------------------------------------------------------------- }}}
+-- myWsBar:           xmobar setting posision                               {{{
+-------------------------------------------------------------------------------
+wsPP = xmobarPP { ppOrder           = \(ws:l:t:_) -> [l,ws,t]
+                , ppCurrent         = xmobarColor colorActive      colorBarbg . \s -> "●"
+                , ppUrgent          = xmobarColor colorNonActive   colorBarbg . \s -> "●"
+                , ppVisible         = xmobarColor colorActive      colorBarbg . \s -> "□"
+                , ppHidden          = xmobarColor colorNonActive   colorBarbg . \s -> "●"
+                , ppHiddenNoWindows = xmobarColor colorNonActive   colorBarbg . \s -> "○"
+                , ppTitle           = xmobarColor colorActive      colorBarbg
+                , ppOutput          = putStrLn
+                , ppWsSep           = " "
+                , ppSep             = " | "
+                }
+
+
+myDbusHook :: D.Client -> PP
+myDbusHook dbus = def
+    { ppOutput = dbusOutput dbus
+    , ppCurrent = wrap ("%{u" ++ "#b8bb26" ++ " B" ++ "#3c3836" ++ " +u}  ") "  %{B- u- -u}"
+    , ppVisible = wrap ("%{u" ++ "#fabd2f" ++ " +u}  ") "  %{u- -u}"
+    , ppUrgent = wrap ("%{u" ++ "#fb4934" ++ " +u}  ") "  %{u- -u}"
+    --, ppHidden = wrap ("%{u " ++ "#3c3836" ++ " +u}  ") "  %{u- -u}"
+    , ppHidden = wrap "  " "  "
+    , ppWsSep = ""
+    , ppSep = " : "
+    , ppTitle = shorten 40
+    }
+
+-- Emit a DBus signal on log updates
+dbusOutput :: D.Client -> String -> IO ()
+dbusOutput dbus str = do
+    let signal = (D.signal objectPath interfaceName memberName) {
+            D.signalBody = [D.toVariant $ UTF8.decodeString str]
+        }
+    D.emit dbus signal
+  where
+    objectPath = D.objectPath_ "/org/xmonad/Log"
+    interfaceName = D.interfaceName_ "org.xmonad.Log"
+    memberName = D.memberName_ "Update"
+
