@@ -58,4 +58,7 @@ ln -i -sn ~/dotfiles/tmux.conf ~/.tmux.conf
 # mysql
 sudo ln -i -sn ~/dotfiles/my.cnf /etc/mysql/my.cnf
 
+# alias
+ln -i -sn ~/dotfiles/alias ~/alias
+
 
