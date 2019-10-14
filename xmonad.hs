@@ -127,7 +127,7 @@ main = do
 -- Keymap: window operations                                         {{{
 ------------------------------------------------------------------------
         `additionalMouseBindings`
-        [ ( ( modm, button1 ), mouseGesture gestures )
+        [ --( ( modm, button1 ), mouseGesture gestures )
         ]
 
 gestures = M.fromList
