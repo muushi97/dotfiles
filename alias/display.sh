@@ -12,8 +12,8 @@ if [ $# -eq 1 ]; then
         disp=$1
     fi
     # --right-of --left-of --above --below
-    xrandr --output eDP1 --auto --primary --output $disp --auto --left-of eDP1
-    #xrandr --output eDP1 --auto --output $disp --auto --primary --right-of eDP1
+    #xrandr --output eDP1 --auto --primary --output $disp --auto --left-of eDP1
+    xrandr --output eDP1 --auto --primary --output $disp --auto --right-of eDP1
     nitrogen --restore
 
 elif [ $# -eq 2 ]; then

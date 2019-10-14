@@ -2,6 +2,7 @@
 
 declare -A list=(
   ['Poweroff']='systemctl poweroff'
+  #['firefpx']='firefox'
   ['Reboot']='systemctl reboot'
 )
 
