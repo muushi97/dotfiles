@@ -25,6 +25,8 @@ export PATH=$PATH:~/alias/
 
 export EDITOR=vim
 
+export HISTSIZE=10000
+export HISTFILESIZE=10000
 export HISTCONTROL=ignoredups
 
 xkbcomp -I$HOME/.xkb ~/.xkb/keymap/mykbd $DISPLAY 2> /dev/null
