@@ -149,6 +149,13 @@ vnoremap < <gv
 noremap <S-h> ^
 noremap <S-l> $
 
+" Sift + Enter で下、Shift Ctrl Enter で上に改行を追加 (guiのみ)
+"imap <S-CR> <End><CR>
+"imap <C-S-CR> <Up><End><CR>
+"nnoremap <S-CR> mzo<ESC>`z
+"nnoremap <C-S-CR> mzO<ESC>`z
+
+
 " PP でヤンクレジスタから貼り付ける
 " noremap p "0p
 
