@@ -1,0 +1,9 @@
+[user]
+	name = kohei nishimuta
+	email = moouushi@gmail.com
+[core]
+	editor = vim
+[url "github:"]
+	InsteadOf = https://github.com/
+	InsteadOf = git@github.com:
+

@@ -14,6 +14,12 @@ ln -i -sn ~/dotfiles/bashrc ~/.bashrc
 # urxvt
 ln -i -sn ~/dotfiles/Xdefaults ~/.Xdefaults
 
+# git
+ln -i -sn ~/dotfiles/gitconfig ~/.gitconfig
+
+# ssh
+ln -i -sn ~/dotfiles/ssh/config ~/.ssh/config
+
 # termite
 mkdir ~/.config/termite
 ln -i -sn ~/dotfiles/termite/config ~/.config/termite/config
