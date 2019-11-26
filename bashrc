@@ -19,10 +19,22 @@ PS1='['
 # ranger からサブシェルに入ったかわかるようにする
 [[ -n "$RANGER_LEVEL" ]] && \
 	PS1=$PS1'ranger '
-PS1=$PS1'\t \u \W]\$ '
+PS1=$PS1'\t \u \W] \$ '
 
+# 出力のあとに改行をいれる
+function add_line {
+    if [[ -z "${PS1_NEWLINE_LOGIN}" ]]; then
+        PS1_NEWLINE_LOGIN=true
+    else
+        printf '\n'
+    fi
+}
+PROMPT_COMMAND='add_line'
+
+# alias
 export PATH=$PATH:~/alias/
 
+# sudoedit is vim
 export EDITOR=vim
 
 export HISTSIZE=10000
