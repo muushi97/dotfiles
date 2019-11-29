@@ -6,6 +6,7 @@
 [[ $- != *i* ]] && return
 
 alias ls='ls --color=auto'
+alias glog='git log --oneline --graph --decorate'
 
 # history にコマンドの実行日時を記録するようにする
 HISTTIMEFORMAT='%Y-%m-%dT%T%z '
