@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# x window 関連
+# x window
 ln -i -sn ~/dotfiles/xinitrc ~/.xinitrc
 ln -i -sn ~/dotfiles/xprofile ~/.xprofile
 
-# xmonad 関連
+# xmonad
 ln -i -sn ~/dotfiles/xmonad.hs ~/.xmonad/xmonad.hs
 ln -i -sn ~/dotfiles/xmobarrc.hs ~/.xmonad/xmobarrc
 
@@ -51,7 +51,7 @@ ln -i -sn ~/dotfiles/nitrogen ~/.config
 # xscreensaver
 ln -i -sn ~/dotfiles/xscreensaver ~/.xscreensaver
 
-# vim 関連
+# vim
 ln -i -sn ~/dotfiles/vimrc ~/.vimrc
 ln -i -sn ~/dotfiles/vim/colors ~/.vim/colors
 ln -i -sn ~/dotfiles/vim/pack ~/.vim/pack
