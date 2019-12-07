@@ -210,17 +210,6 @@ endfunction
 " }}}
 
 
-"---------------------------------------------------------------------------
-" 閉じ括弧等の入力受け流し : {{{
-function! BracketThrough(hoge)
-	if getline('.')[col('.')-1] == a:hoge
-		return "\<Right>"
-	endif
-	return a:hoge
-endfunction
-" }}}
-
-
 " カーソル行のurlをデフォルのブラウザで開く : {{{
 " http://d.hatena.ne.jp/shunsuk/20110508/1304865150
 function! HandleURI()
@@ -303,5 +292,4 @@ function! s:auto_update_colorscheme(...) abort
     autocmd! BufReadPost <buffer> source %
 endfunction
 command! -nargs=? AutoUpdateColorscheme call <SID>auto_update_colorscheme(<f-args>)
-
 
