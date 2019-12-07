@@ -1,70 +1,132 @@
 #!/bin/bash
 
-# x window
-ln -i -sn ~/dotfiles/xinitrc ~/.xinitrc
-ln -i -sn ~/dotfiles/xprofile ~/.xprofile
+function dotfiles () {
+    # x window
+    FILES[xinitrc]=~/.xinitrc
+    FILES[xprofile]=~/.xprofile
 
-# xmonad
-ln -i -sn ~/dotfiles/xmonad.hs ~/.xmonad/xmonad.hs
-ln -i -sn ~/dotfiles/xmobarrc.hs ~/.xmonad/xmobarrc
+    # xmonad
+    FILES[xmonad.hs]=~/.xmonad/xmonad.hs
+    FILES[xmobarrc.hs]=~/.xmonad/xmobarrc
 
-# bash
-ln -i -sn ~/dotfiles/bashrc ~/.bashrc
+    # bash
+    FILES[bashrc]=~/.bashrc
 
-# urxvt
-ln -i -sn ~/dotfiles/Xdefaults ~/.Xdefaults
+    # urxvt
+    FILES[Xdefaults]=~/.Xdefaults
 
-# git
-ln -i -sn ~/dotfiles/gitconfig ~/.gitconfig
+    # git
+    FILES[gitconfig]=~/.gitconfig
 
-# ssh
-ln -i -sn ~/dotfiles/ssh/config ~/.ssh/config
+    # ssh
+    FILES[config]=~/.ssh/config
 
-# termite
-mkdir ~/.config/termite
-ln -i -sn ~/dotfiles/termite/config ~/.config/termite/config
+    # termite
+    MKDIRS+=~/.config/termite
+    FILES[termite/config]=~/.config/termite/config
 
-# rofi
-mkdir ~/.config/rofi
-ln -i -sn ~/dotfiles/rofi/config ~/.config/rofi/config
-ln -i -sn ~/dotfiles/rofi/rofi-system.sh ~/.config/rofi/rofi-system.sh
+    # rofi
+    MKDIRS+=~/.config/rofi
+    FILES[rofi/config]=~/.config/rofi/config
+    FILES[rofi/rofi-system.sh]=~/.config/rofi/rofi-system.sh
 
-# polybar
-mkdir ~/.config/polbar
-ln -i -sn ~/dotfiles/polybar/config ~/.config/polybar/config
-ln -i -sn ~/dotfiles/polybar/np.py ~/.config/polybar/np.py
-ln -i -sn ~/dotfiles/polybar/polybar-restart ~/.config/polybar/polybar-restart
-ln -i -sn ~/dotfiles/polybar/updates.sh ~/.config/polybar/updates.sh
+    # polybar
+    MKDIRS+=~/.config/polbar
+    FILES[polybar/config]=~/.config/polybar/config
+    FILES[polybar/np.py]=~/.config/polybar/np.py
+    FILES[polybar/polybar-restart]=~/.config/polybar/polybar-restart
+    FILES[polybar/updates.sh]=~/.config/polybar/updates.sh
 
-# xkb
-mkdir ~/.xkb
-mkdir ~/.xkb/keymap ~/.xkb/symbols
-ln -i -sn ~/dotfiles/xkb/keymap/mykbd ~/.xkb/keymap/mykbd
-ln -i -sn ~/dotfiles/xkb/symbols/myswap ~/.xkb/symbols/myswap
+    # xkb
+    MKDIRS+=~/.xkb/keymap
+    MKDIRS+=~/.xkb/symbols
+    FILES[xkb/keymap/mykbd]=~/.xkb/keymap/mykbd
+    FILES[xkb/symbols/myswap]=~/.xkb/symbols/myswap
 
-# ???
-ln -i -sn ~/dotfiles/redshift.conf ~/.config/redshift.conf
+    # 
+    FILES[redshift.conf]=~/.config/redshift.conf
 
-# nitrogen
-ln -i -sn ~/dotfiles/nitrogen ~/.config
+    # nitrogen
+    FILES[nitrogen]=~/.config
 
-# xscreensaver
-ln -i -sn ~/dotfiles/xscreensaver ~/.xscreensaver
+    # xscreensaver
+    FILES[xscreensaver]=~/.xscreensaver
 
-# vim
-ln -i -sn ~/dotfiles/vimrc ~/.vimrc
-ln -i -sn ~/dotfiles/vim/colors ~/.vim/colors
-ln -i -sn ~/dotfiles/vim/pack ~/.vim/pack
-ln -i -sn ~/dotfiles/vim/ftdetect ~/.vim/ftdetect
-ln -i -sn ~/dotfiles/vim/ftplugin ~/.vim/ftplugin
+    # vim
+    VIMPLUGIN_DIR=~/.vim/pack
+    FILES[vimrc]=~/.vimrc
+    FILES[vim/colors]=~/.vim/colors
+    FILES[vim/ftdetect]=~/.vim/ftdetect
+    FILES[vim/ftplugin]=~/.vim/ftplugin
 
-# tmux
-ln -i -sn ~/dotfiles/tmux.conf ~/.tmux.conf
+    # tmux
+    FILES[tmux.conf]=~/.tmux.conf
 
-# mysql
-sudo ln -i -sn ~/dotfiles/my.cnf /etc/mysql/my.cnf
+    # mysql
+    FILES[my.cnf]=/etc/mysql/my.cnf
 
-# alias
-ln -i -sn ~/dotfiles/alias ~/alias
+    # alias
+    FILES[alias]=~/alias
+}
 
+function link () {
+    for elem in ${MKDIRS[@]};
+    do
+        mkdir -p $elem
+    done
+
+    for KEY in ${!FILES[@]};
+    do
+        FILE=${FILES[$KEY]}
+
+        if [[ -L $FILE ]]; then
+            echo \"$FILE\" "is already exits. " \"$FILE\" "is simboricling."
+        elif [[ -d $FILE ]]; then
+            echo \"$FILE\" "is already exits. " \"$FILE\" "is directory"
+        elif [[ -f $FILE ]]; then
+            echo \"$FILE\" "is already exits. " \"$FILE\" "is file"
+        else
+            ln -i -sn $DOTFILES/$KEY $FILE
+        fi
+    done
+}
+
+
+# directories
+PWD=`pwd`
+DOTFILES=$(cd $(dirname $0); pwd)
+
+# declaretions
+declare -A FILES
+declare -a MKDIRS
+
+echo $1
+
+if [[ "$1" = "install" ]]; then
+    echo install start
+
+    dotfiles
+    link
+
+    # clone vim plugins
+    git clone https://github.com/lilydjwg/colorizer.git $VIMPLUGIN_DIR/colorizer/start/colorizer
+    git clone https://github.com/scrooloose/nerdtree.git $VIMPLUGIN_DIR/nerdtree/start/nerdtree
+    git clone https://github.com/cocopon/pgmnt.vim.git $VIMPLUGIN_DIR/pgmnt/start/pgmnt
+
+    echo install finished
+
+
+elif [[ "$1" = "update" ]]; then
+    echo update start
+
+    dotfiles
+    link
+
+    # pull vim plugins
+    git -C $VIMPLUGIN_DIR/colorizer/start/colorizer pull
+    git -C $VIMPLUGIN_DIR/nerdtree/start/nerdtree pull
+    git -C $VIMPLUGIN_DIR/pgmnt/start/pgmnt pull
+
+    echo update finished
+fi
 
