@@ -5,7 +5,7 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
-alias ls='ls --color=auto'
+alias ls='ls --color=auto -l'
 alias glog='git log --oneline --graph --decorate'
 alias mkdir='mkdir -p'
 
