@@ -8,9 +8,9 @@ set fileencodings=utf-8,iso-2022-jp,euc-jp,sjis
 set encoding=utf-8
 " vim script 内で使用するエンコーディング設定
 scriptencoding utf-8
-" vi 互換モードでうごくなゾ 
+" vi 互換モードでうごくな
 set nocompatible
-" 背景の感じを決めるゾ (たぶんカラースキーマによっては意味ない)
+" 背景の感じを決める (たぶんカラースキーマによっては意味ない)
 set background=dark
 " カラースキーマを変更
 colorscheme elflord
@@ -59,11 +59,11 @@ set backspace=indent,eol,start
 set showmatch
 " コマンドライン補完するときに強化されたものを使う(参照 :help wildmenu)
 set wildmenu
-" いくつかのモードで文字のないところにカーソルが移動できるようになるゾ
+" いくつかのモードで文字のないところにカーソルが移動できるようになる
 set virtualedit=block
 " クリップボード連携
 set clipboard+=unnamed,autoselect
-" ウィンドウ上下にカーソルが移動したときに，カーソル先の視界をどれだけ確保するか (べつにウィンドウ外に出ても機能するわけじゃないゾ)
+" ウィンドウ上下にカーソルが移動したときに，カーソル先の視界をどれだけ確保するか (べつにウィンドウ外に出ても機能するわけじゃない)
 set scrolloff=4
 " }}}
 
@@ -149,20 +149,12 @@ inoremap <expr> > BracketThrough('>')
 vnoremap > >gv
 vnoremap < <gv
 
-" Shiftとhやlで行頭，行末にそれぞれ移動ゾ
+" Shiftとhやlで行頭，行末にそれぞれ移動
 noremap <S-h> ^
 noremap <S-l> $
 
-" Sift + Enter で下、Shift Ctrl Enter で上に改行を追加 (guiのみ)
-"imap <S-CR> <End><CR>
-"imap <C-S-CR> <Up><End><CR>
-"nnoremap <S-CR> mzo<ESC>`z
-"nnoremap <C-S-CR> mzO<ESC>`z
-
-
 " PP でヤンクレジスタから貼り付ける
 " noremap p "0p
-
 
 " ターミナルをウィンドウで上下左右に開く
 command! Lterm lefta vert term
@@ -178,12 +170,6 @@ command! Bmterm botright term
 "---------------------------------------------------------------------------
 " プラグイン関連
 "
-" vim-indent-guides
-let g:indent_guides_auto_colors=0
-autocmd VimEnter,Colorscheme * :hi IndentGuidesOdd   ctermbg=110
-autocmd VimEnter,Colorscheme * :hi IndentGuidesEven  ctermbg=140
-let g:indent_guides_enable_on_vim_startup=1
-let g:indent_guides_guide_size=1
 
 
 "---------------------------------------------------------------------------
@@ -197,21 +183,6 @@ highlight Folded ctermfg=none ctermbg=none
 highlight FoldedColumn ctermfg=darkgray ctermbg=white
 " fold の fill 文字をケシてるらしい
 set fillchars=vert:\|
-" 関数設定
-" set foldtext=MyFoldText()
-" 関数 (蜜柑)
-function! MyFoldText()
-	let head = getline(v:foldstart)
-	let foldline = v:foldend - v:foldstart + 1
-	let tail = foldline . ' line'
-	let headindent = repeat(' ', indent(v:foldstart))
-	for ii in strlen(head)
-		if head[0] == ' '
-			head = head[1:]
-		endif
-	endfor
-	return head
-endfunction
 
 
 "---------------------------------------------------------------------------
