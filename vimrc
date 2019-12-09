@@ -164,6 +164,17 @@ noremap <S-l> $
 " noremap p "0p
 
 
+" ターミナルをウィンドウで上下左右に開く
+command! Lterm lefta vert term
+command! Rterm rightb vert term
+command! Tterm abo term
+command! Bterm bel term
+command! Lmterm topleft vert term
+command! Rmterm botright vert term
+command! Tmterm topleft term
+command! Bmterm botright term
+
+
 "---------------------------------------------------------------------------
 " プラグイン関連
 "
