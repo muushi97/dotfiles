@@ -82,7 +82,9 @@ set list listchars=tab:»\ ,trail:·,eol:¬
 " 長い行を折り返して表示 (nowrap:折り返さない)
 set wrap
 " 自動改行もいんでんと 
-set breakindent
+if (v:version == 704 && has("patch785")) || v:version >= 705
+    set breakindent
+endif
 " 常にステータス行を表示 (詳細は:he laststatus)
 set laststatus=2
 " コマンドラインの高さ (Windows用gvim使用時はgvimrcを編集すること)
@@ -100,7 +102,9 @@ set t_Co=256
 " 画面を黒地に白にする (次行の先頭の " を削除すれば有効になる)
 colorscheme hybrid
 " 24色にする
-set termguicolors
+if v:version >= 800
+    set termguicolors
+endif
 " 行番号の色
 highlight LineNr ctermfg=white
 " カーソルラインの色
