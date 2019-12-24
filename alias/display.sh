@@ -13,7 +13,7 @@ if [ $# -eq 1 ]; then
     fi
     # --right-of --left-of --above --below
     #xrandr --output eDP1 --auto --primary --output $disp --auto --left-of eDP1
-    xrandr --output eDP1 --auto --primary --output $disp --auto --right-of eDP1
+    xrandr --output eDP-1 --auto --primary --output $disp --auto --right-of eDP-1
     nitrogen --restore
 
 elif [ $# -eq 2 ]; then
