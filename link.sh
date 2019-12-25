@@ -19,11 +19,17 @@ function dotfiles () {
     FILES[gitconfig]=~/.gitconfig
 
     # ssh
-    FILES[config]=~/.ssh/config
+    FILES[ssh/config]=~/.ssh/config
 
     # termite
     MKDIRS+=~/.config/termite
     FILES[termite/config]=~/.config/termite/config
+
+    # ranger
+    MKDIRS+=~/.config/ranger
+    FILES[ranger/rc.conf]=~/.config/ranger/rc.conf
+    FILES[ranger/rifle.conf]=~/.config/ranger/rifle.conf
+    FILES[ranger/scope.sh]=~/.config/ranger/scope.sh
 
     # rofi
     MKDIRS+=~/.config/rofi
