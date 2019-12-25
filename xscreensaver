@@ -34,7 +34,7 @@ dpmsOff:                    4:00:00
 grabDesktopImages:          True
 grabVideoFrames:            False
 chooseRandomImages:         True
-imageDirectory:             /home/kohei/Wallpapers/hgoe
+imageDirectory:             /home/kohei/pictures/wallpapers
 
 mode:		one
 selected:	108
