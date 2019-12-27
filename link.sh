@@ -119,6 +119,11 @@ if [[ "$1" = "install" ]]; then
     git clone https://github.com/scrooloose/nerdtree.git $VIMPLUGIN_DIR/nerdtree/start/nerdtree
     git clone https://github.com/cocopon/pgmnt.vim.git $VIMPLUGIN_DIR/pgmnt/start/pgmnt
 
+    # git prompt
+    GIT_VERSION="2.5.0"
+    curl https://raw.githubusercontent.com/git/git/v${GIT_VERSION}/contrib/completion/git-completion.bash > ~/.git-completion.bash
+    curl https://raw.githubusercontent.com/git/git/v${GIT_VERSION}/contrib/completion/git-prompt.sh > ~/.git-prompt.sh
+
     echo install finished
 
 

@@ -13,8 +13,8 @@ alias mkdir='mkdir -p'
 HISTTIMEFORMAT='%Y-%m-%dT%T%z '
 
 # git の補完用にスクリプトを読込む
-source /usr/share/git/completion/git-completion.bash
-source /usr/share/git/git-prompt.sh
+source ~/.git-completion.bash
+source ~/.git-prompt.sh
 
 # PS1 に代入してプロンプト表示を変更
 # \t=時間 \u=ユーザー名 \W=カレントディレクトリ
