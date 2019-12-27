@@ -12,16 +12,27 @@ alias mkdir='mkdir -p'
 # history にコマンドの実行日時を記録するようにする
 HISTTIMEFORMAT='%Y-%m-%dT%T%z '
 
+# git の補完用にスクリプトを読込む
+source /usr/share/git/completion/git-completion.bash
+source /usr/share/git/git-prompt.sh
+
 # PS1 に代入してプロンプト表示を変更
-# \t=時間 \u=ユーザー名 \W カレントディレクトリ
+# \t=時間 \u=ユーザー名 \W=カレントディレクトリ
 PS1='['
 # vim からサブシェルに入ったかわかるようにする
 [[ -n "$VIMRUNTIME" ]] && \
-	PS1=$PS1'vim '
+	PS1=$PS1'v '
 # ranger からサブシェルに入ったかわかるようにする
 [[ -n "$RANGER_LEVEL" ]] && \
-	PS1=$PS1'ranger '
-PS1=$PS1'\t \u \W] \$ '
+	PS1=$PS1'r '
+# git 用
+GIT_PS1_SHOWDIRTYSTATE=true      # *:unstaged, +:staged
+GIT_PS1_SHOWUNTRACKEDFILES=true  # %:untracked
+GIT_PS1_SHOWSTASHSTATE=true      # $:stashed
+GIT_PS1_SHOWUPSTREAM=auto        # >:ahead, <:behind
+GIT_PS1_STATESEPARATOR=':'
+
+PS1=$PS1'\W $(__git_ps1)] \$ '
 
 # 出力のあとに改行をいれる
 function add_line {
