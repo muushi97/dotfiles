@@ -8,7 +8,7 @@ Host github
     IdentitiesOnly yes
 
 # github for school
-Host github_shcool
+Host github_school
     User git
     HostName github.com
     IdentityFile ~/.ssh/github_school
