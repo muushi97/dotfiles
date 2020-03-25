@@ -1,5 +1,17 @@
-Host github github.com
+# github for private
+Host github
+    User git
+    Port 22
     HostName github.com
     IdentityFile ~/.ssh/id_ed25519
+    TCPKeepAlive yes
+    IdentitiesOnly yes
+
+# github for school
+Host github_shcool
     User git
+    HostName github.com
+    IdentityFile ~/.ssh/github_school
+    TCPKeepAlive yes
+    IdentitiesOnly yes
 
