@@ -65,6 +65,8 @@ set virtualedit=block
 set clipboard+=unnamed,autoselect
 " ウィンドウ上下にカーソルが移動したときに，カーソル先の視界をどれだけ確保するか (べつにウィンドウ外に出ても機能するわけじゃない)
 set scrolloff=4
+" セッションで保存・復元される項目の設定
+set sessionoptions=blank,folds,help,options,resize,sesdir,slash,terminal,unix,winpos,winsize
 " }}}
 
 
