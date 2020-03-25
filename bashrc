@@ -46,6 +46,7 @@ PROMPT_COMMAND='add_line'
 
 # alias
 export PATH=$PATH:~/alias/
+export PATH=$PATH:/home/kohei/.local/bin
 
 # sudoedit is vim
 export EDITOR=vim
