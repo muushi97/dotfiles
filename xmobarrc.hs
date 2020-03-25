@@ -42,13 +42,13 @@ Config { font = "xft:Cica:size=11"				-- font (xftってのがフォントにア
 												, "-O"		, "<fc=#ffff00><icon=bat.xbm/></fc><left>%"		-- 充電中
 												, "-i"		, "<icon=bat.xbm/><left>%"						-- 充電終わり
 											] 50
-					, Run Network "enp0s31f6" [ "-t"	  , "<dev>:U<rx>, D<tx>"
+					, Run Network "enp0s31f6" [ "-t"	  , "<dev>:D<rx>, U<tx>"
 											, "-L"		 , "0"
 											, "-H"		 , "32"
 											, "--normal" , "green"
 											, "--high"	 , "red"
 											] 10
-					, Run Network "wlp4s0"	[ "-t"		, "<icon=wireless.xbm/>U<rx>, D<tx>"
+					, Run Network "wlp4s0"	[ "-t"		, "<icon=wireless.xbm/>D<rx>, U<tx>"
 											, "-L"		 , "0"
 											, "-H"		 , "32"
 											, "--normal" , "green"
