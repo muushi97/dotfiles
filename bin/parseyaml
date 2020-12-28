@@ -1,0 +1,153 @@
+#!/bin/sh
+
+VERSION=0.0.1
+
+SPC=$(printf '\025') # 引用符内スペースのエスケープ用文字
+DELIMITER="/"
+FILEFLAG="FALSE"
+FILENAME=""
+
+# usage
+set -e && :<<'USAGE'
+$(basename "${0}") is a tool for parse a yaml file.
+
+Usage: $(basename "${0}") [-d|--delimiter n] [-f|--file filename] [-v|--version] [-h|--help]
+
+Options:
+  -d n, --delimiter n               デリミタを指定 (デフォルトは "${DELIMITER}")
+  -f filename, --file filename      yaml file
+  -v --version                      バージョンを表示
+  -h --help                         Display this help
+
+Version: $VERSION
+USAGE
+usage() { sed -n "/<<'$1'/,/^$1\$/ { s/.*<<'$1'/cat<<$1/; p }"; }
+
+# analyze options
+while getopts :d:f:hv-: opt; do
+    optarg="$OPTARG"
+    if [[ "$opt" = - ]]; then
+        opt=-`echo $OPTARG | sed -e "s/=.*$//"`
+        optarg=`echo $OPTARG | sed -e "s/^.*=//"`
+        if [[ -"$optarg" = "$opt" ]] && [[ ! "${!OPTIND}" = -* ]]; then
+            optarg="${!OPTIND}"
+            shift
+        fi
+    fi
+    case "-$opt" in
+        -d|--delimiter)
+            DELIMITER="$optarg"
+            ;;
+        -f|--filename)
+            FILEFLAG="TRUE"
+            FILENAME="$optarg"
+            ;;
+        -v|--version)
+            echo "Version:" $VERSION
+            exit 1
+            ;;
+        -h|--help)
+            eval "$(usage "USAGE" < "$0")"
+            exit 0
+            ;;
+        -\?)
+            echo "$0: illegal option -- ${opt}" >&2
+            exit 1
+            ;;
+        --*)
+            echo "$0: illegal option -- ${opt}" >&2
+            exit 1
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+sed -e "s/[ \t]*#.*$//" | sed -e "s/[ \t]*$//" | sed -e "/^#.*$/d" | sed -e "/^$/d" | # コメントと空行を削除
+sed -e "s/^\( *\)- \+\(.*\)$/\1-:\n\1  \2/"                                         | # "<hyphen> <value>" を "<hyphen><colon><CR>  <value>" に変換
+awk 'match($0, /^ */) { sub(/^ */, "", $0); print RLENGTH, $0 }'                    | # 行頭の連続する空白を連続する数に置換
+sed -e "s/^\([0-9]\+\) \+\([^:]\+\) *: *\(.\+\)$/\1 ? \2\n\1 \3/"                   | # mapping の "<kay><colon>" を "<?> <key> <CR>" に変換
+sed -e "s/^\([0-9]\+\) \+\([^:]\+\) *: *$/\1 ? \2/"                                 | # mapping の "<kay><colon>" を "<?> <key> <CR>" に変換
+# inline sequence を展開
+awk '{
+    match($0, /[0-9]+/)                                                 # インデント部分のマッチを探す
+    indent = substr($0, RSTART, RLENGTH)                                # インデント部分の抽出
+    rest = substr($0, RSTART+RLENGTH, length($0))                       # インデント以外の部分を抽出
+    match(rest, /\[ *.+ *\]/)                                           # インライン形式の sequence のマッチを探す
+    sequence_start = RSTART+2                                           # インライン形式の sequence の開始位置 ( +2 しないと最初の括弧がでてくる)
+    sequence_length = RLENGTH-2                                         # インライン形式の sequence の終了位置 ( -2 しないと最後の括弧がでてくる)
+    if (sequence_length > 0) {
+        seq = substr($0, sequence_start, sequence_length)               # 一行のインライン形式の sequence のアイテムを抽出
+        split(seq, items, ",");                                         # sequence のアイテムをカンマ区切りで分割
+        for (i = 0; i < length(items); i++) {
+            if (length(items[i]) > 1) {                                 # sequence の各アイテムのうち意味のあるものをハイフンをキーとする mapping として出力
+                print indent+2, "?", "-"
+                print indent+2, items[i]
+            }
+        }
+    }
+    else                                                                # sequence でない行はそのまま出力
+        print $0
+}' |
+# 空白区切りの XPath と value の形式に変換
+awk 'BEGIN {
+    last = 0;
+    indents[last] = 0;
+    keys[last] = "#";
+    indices[last] = 0;
+    delimiter = "'"$DELIMITER"'";
+}
+{
+    if ($1 == 0 && ($2 == "---" || $2 == "...")) print "";
+    else {
+        indent = $1;
+        if ($2 == "?") {                                                    # mapping のキーの場合
+            if (indents[last] < indent) {                                   # インデントが深くなる場合
+                last = last + 1;
+                indents[last] = indent;
+            }
+            else if (indents[last] > indent) {                              # インデントが浅くなる場合
+                for (i = 0; i < last; i++) {
+                    if (indents[i] <= indent && indent < indents[i+1]) {
+                        prev_last = last;
+                        if (indents[i] < indent)
+                            last = i + 1;
+                        else
+                            last = i;
+                        for (i = last+1; i <= prev_last; i++)
+                            indices[i] = -1;
+                        indents[last] = indent;
+                        break;
+                    }
+                }
+            }
+
+            if ($3 == "-") {                                                # sequence の場合
+                if (keys[last] == "-") indices[last] += 1;
+                else {
+                    keys[last] = "-";
+                    indices[last] = 0;
+                }
+            }
+            else keys[last] = $3;
+        }
+        else {                                                              # mapping の value の場合
+            if (indents[last] > indent) {
+                for (i = 0; i < last; i++) {
+                    if (indents[i] <= indent && indent < indents[i+1]) {
+                        last = i;
+                        break;
+                    }
+                }
+            }
+            for (i = 0; i <= last; i++)                                     # key を XPath 形式で出力
+                if (keys[i] == "-") printf "[%s]",indices[i];
+                else printf "%s%s",delimiter,keys[i];
+            match($0, /[0-9]+ +/)                                           # インデント数とそれを区切る空白の部分をマッチで探す
+            value = substr($0, RSTART+RLENGTH, length($0))                  # value 部分を空白で区切って抽出
+            printf " %s\n",value;
+        }
+    }
+}'
+
+
+

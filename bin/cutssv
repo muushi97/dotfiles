@@ -1,0 +1,50 @@
+#!/bin/sh
+
+# ヘッダのある csv から条件を満たす特定のカラムを抽出する
+
+arg=$@
+awk -v "arg=$arg" 'BEGIN {
+    split(arg, args)
+    last_l=0
+    last_c=0
+    for (a in args) {
+        where = match(args[a], ">=|>|<=|<|==|!=")
+        if (where != 0) {
+            last_c++
+            conds[last_c] = substr(args[a], where, RLENGTH)
+            lefts[last_c] = substr(args[a], 1, where-1)
+            rights[last_c] =  substr(args[a], where + RLENGTH)
+            #print cond[last_c], left[last_c], right[last_c]
+        }
+        else {
+            last_l++
+            labels[last_l] = args[a]
+        }
+    }
+}
+NR==1 {
+    for (i=1; i<=NF; i++) {
+        for (j in labels) if (labels[j] == $i) ext_labels[labels[j]] = i
+        for (j in lefts)  if (lefts[j]  == $i) ext_lefts[j] = i
+    }
+    for (i in ext_labels)
+        printf i " "
+    printf "\n"
+}
+NR>1 {
+    f = 1
+    for (j in ext_lefts) {
+        if (conds[j] == "==") f *= $ext_lefts[j] == rights[j] ? 1 : 0
+        if (conds[j] == "!=") f *= $ext_lefts[j] != rights[j] ? 1 : 0
+        if (conds[j] == "<=") f *= $ext_lefts[j] <= rights[j] ? 1 : 0
+        if (conds[j] == ">=") f *= $ext_lefts[j] >= rights[j] ? 1 : 0
+        if (conds[j] == "<" ) f *= $ext_lefts[j] <  rights[j] ? 1 : 0
+        if (conds[j] == ">" ) f *= $ext_lefts[j] >  rights[j] ? 1 : 0
+    }
+    if (f == 1) {
+        for (i in ext_labels)
+            printf $ext_labels[i] " "
+        printf "\n"
+    }
+}' | sed -e "s/ *$//"
+

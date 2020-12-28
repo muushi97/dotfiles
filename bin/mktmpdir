@@ -1,0 +1,10 @@
+#!/bin/sh
+
+(
+  now=$(date +'%Y%m%d%H%M%S') || return $?
+  file="${3:-${TMPDIR:-/tmp}}/${1:-}$now-$$${2:-}"
+  umask 0077
+  mkdir "$file" || return $?
+  echo "$file"
+)
+
