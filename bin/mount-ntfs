@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# ntfs フォーマットのマウント用
+sudo mount -t auto -o rw,relatime,uid=$(id -u),gid=$(id -g),codepage=932,iocharset=utf8,umask=0077 $1 $2
+
