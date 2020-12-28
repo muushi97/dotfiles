@@ -45,7 +45,7 @@ function add_line {
 PROMPT_COMMAND='add_line'
 
 # alias
-export PATH=$PATH:~/alias/
+export PATH=$PATH:~/bin/
 export PATH=$PATH:/home/kohei/.local/bin
 
 # sudoedit is vim
