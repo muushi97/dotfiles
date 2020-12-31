@@ -45,7 +45,7 @@ Config { font = "xft:Cica:size=11"                  -- font (xftってのがフ�
                                                     , "-i"   , "<icon=bat.xbm/><left>%"                      -- 充電終わり
                                                 ] 50
 
-                    , Run Network "enp0s31f6"   [ "-t"       , "<dev>:D<rx>, U<tx>"
+                    , Run Network "enp0s31f6"   [ "-t"       , "<icon=wireless.xbm/>D<rx>, U<tx>"
                                                 , "-L"       , "0"
                                                 , "-H"       , "32"
                                                 , "--normal" , "green"
@@ -64,7 +64,7 @@ Config { font = "xft:Cica:size=11"                  -- font (xftってのがフ�
                     ]
        , sepChar = "%"
        , alignSep = "}{"
-       , template = "%StdinReader% }{ <fc=#d8d8d8,#006600><action=`pavucontrol`><icon=speaker.xbm/></action></fc> <action=`nm-connection-editor`>%wlp4s0%</action> %multicpu% %memory% %battery% <action=`fcitx-configtool`>%fcitx%</action> <fc=#c7a273>%date%</fc> <action=`rofi -show system`>🔌</action> "
+       , template = "%StdinReader% }{ <fc=#d8d8d8,#006600><action=`pavucontrol`><icon=speaker.xbm/></action></fc> <action=`nm-connection-editor`>%wlp4s0% %enp0s31f6%</action> %multicpu% %memory% %battery% <action=`fcitx-configtool`>%fcitx%</action> <fc=#c7a273>%date%</fc> <action=`rofi -show system`>🔌</action> "
        }
 
 
