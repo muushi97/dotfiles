@@ -1,9 +1,12 @@
 #!/usr/bin/bash
 
 declare -A list=(
-  ['Poweroff']='xmonad --recompile; systemctl poweroff'
+  ['Logout']='xdotool key Super+shift+q'
+  #['Poweroff']='xmonad --recompile; systemctl poweroff'
+  ['Poweroff']='systemctl poweroff'
   #['firefpx']='firefox'
-  ['Reboot']='xmonad --recompile; systemctl reboot'
+  #['Reboot']='xmonad --recompile; systemctl reboot'
+  ['Reboot']='systemctl reboot'
 )
 
 if [[ ${1##* } == 'yes' ]]; then
