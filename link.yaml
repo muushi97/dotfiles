@@ -1,0 +1,49 @@
+
+bash:
+  - .bashrc: bashrc
+xmonad:
+  - .xmonad.hs: xmonad.hs
+vim:
+  - .vimrc: vimrc
+  - .vim/colors: vim/colors
+  - .vim/ftdetect: vim/ftdetect
+  - .vim/ftplugin: vim/ftplugin
+dunst:
+  - .config/dunst/dunstrc: dunstrc
+git:
+  - .gitconfig: gitconfig
+tmux:
+  - .tmux.conf: tmux.conf
+urxvt:
+  - .Xdefaults: Xdefaults
+startx:
+  - .xinitrc: xinitrc
+xmobar:
+  - .xmobarrc: xmobarrc.hs
+ls:
+  - .Xmodmap: Xmodmap
+  - .xscreensaver: xscreensaver
+  - bin: bin
+  - .xkb/keymap/mykbd: xkb/keymap/mykbd
+  - .xkb/symbols/myswap: xkb/symbols/myswap
+fcitx:
+  - .xprofile: xprofile
+polybar:
+  - .config/polybar/config: polybar/config
+  - .config/polybar/polybar-restart: polybar/polybar-restart
+  - .config/polybar/updates.sh: polybar/updates.sh
+ranger:
+  - .config/ranger/rc.conf: ranger/rc.conf
+  - .config/ranger/rifle.conf: ranger/rifle.conf
+  - .config/ranger/scope.sh: ranger/scope.sh
+rofi:
+  - .config/rofi/config: rofi/config
+  - .config/rofi/rofi-system.sh: rofi/rofi-system.sh
+ssh:
+  - .ssh/config: ssh/config
+#nitrogen:
+
+
+
+
+

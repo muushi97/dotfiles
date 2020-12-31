@@ -1,0 +1,78 @@
+#!/bin/sh
+
+DOTFILES_REPOSITORY=https://github.com/muushi97/dotfiles.git
+DOTFILES_PATH=~/dotfiles
+
+exist_command() {
+    eval "$(echo $PATH | tr ':' '\n' | sed -e "s/^/find /; s/$/ -name \"$1\"/")" | wc -l
+}
+
+dotfile_clone() {
+    if [ -d $DOTFILES_PATH ]; then
+        echo "$DOTFILES_PATH: already exists" 1>&2
+        exit 1
+    fi
+
+    if [ $(exist_command git) -eq 0 ]; then
+        # 'git' is not exist
+        :
+    else
+        # 'git' is exist
+        git clone --recursive "$DOTFILES_REPOSITORY" "$DOTFILES_PATH"
+    fi
+}
+
+dotfile_link() {
+    cat $DOTFILES_PATH/link.yaml | $DOTFILES_PATH/bin/parseyaml | sed -e "s/^\///; s/\[[0-9]\+\]\// /" |
+    awk '{
+        print "if [ $(exist_command "$1") -eq 0 ]; then"
+        print "    :"
+        print "else"
+        print "   if [ -e '$HOME'/"$2" ]; then"
+        print "     echo '$HOME'/"$2": already exists"
+        print "   else"
+        print "     ln -s '$DOTFILES_PATH'/"$3" '$HOME'/"$2
+        print "   fi"
+        print "fi"
+    }'
+}
+
+dotfile_install() {
+    eval "$(dotfile_link)"
+
+    VIMPLUGIN_DIR=~/.vim/pack
+    git clone https://github.com/lilydjwg/colorizer.git $VIMPLUGIN_DIR/colorizer/start/colorizer
+    git clone https://github.com/scrooloose/nerdtree.git $VIMPLUGIN_DIR/nerdtree/start/nerdtree
+    git clone https://github.com/cocopon/pgmnt.vim.git $VIMPLUGIN_DIR/pgmnt/start/pgmnt
+
+    GIT_VERSION="2.5.0"
+    curl https://raw.githubusercontent.com/git/git/v${GIT_VERSION}/contrib/completion/git-completion.bash > ~/.git-completion.bash
+    curl https://raw.githubusercontent.com/git/git/v${GIT_VERSION}/contrib/completion/git-prompt.sh > ~/.git-prompt.sh
+}
+
+dotfile_update() {
+    eval "$(dotfile_link)"
+
+    VIMPLUGIN_DIR=~/.vim/pack
+    git -C $VIMPLUGIN_DIR/colorizer/start/colorizer pull --rebase
+    git -C $VIMPLUGIN_DIR/nerdtree/start/nerdtree pull --rebase
+    git -C $VIMPLUGIN_DIR/pgmnt/start/pgmnt pull --rebase
+}
+
+
+if [ $# -eq 0 ]; then
+    dotfile_clone && dotfile_install
+elif [ $# -eq 1 ]; then
+    if [[ "$1" = "install" ]]; then
+        dotfile_install
+    elif [[ "$1" = "update" ]]; then
+        dotfile_update
+    else
+        echo "error" 1>&2
+    fi
+else
+    echo "error" 1>&2
+fi
+
+
+
