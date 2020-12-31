@@ -16,8 +16,13 @@ import Data.Maybe
 -------------------------------------------------------------------------------
 import qualified Data.Map as M
 import qualified XMonad.StackSet as W
-import Control.Monad (liftM2)          -- myManageHookShift
+import Control.Monad
+--import Control.Monad (liftM2)          -- myManageHookShift
+import Data.List
 import Data.Monoid
+import Data.Ord
+import System.Directory
+import System.Posix.Files
 import System.IO                       -- for xmobar
 import XMonad.Config.Desktop (desktopLayoutModifiers)
 
@@ -79,13 +84,42 @@ colorNonActive = "#769164"
 -- Border width
 borderwidth = 0
 
+-- workspace log file
+wsLogfile = "/tmp/.xmonad-workspace-log"
+
+getWorkspaceLog :: X String
+getWorkspaceLog = do
+    winset <- gets windowset
+    let currWs = W.currentTag winset
+    let wss    = W.workspaces winset
+    let wsIds  = map W.tag   $ wss
+    let wins   = map W.stack $ wss
+    let (wsIds', wins') = sortById wsIds wins
+    return . join . map (fmt currWs wins') $ wsIds'
+    where
+        hasW = not . null
+        idx = flip (-) 1 . read
+        sortById ids xs = unzip $ sortBy (comparing fst) (zip ids xs)
+        fmt cw ws id
+            | id == cw            = " \63022"
+            | hasW $ ws !! idx id = " \61842"
+            | otherwise           = " \63023"
+
+eventLogHook :: FilePath -> X ()
+eventLogHook filename = io . appendFile filename . (++ "\n") =<< getWorkspaceLog
 
 --------------------------------------------------------------------------- }}}
 -- main                                                                     {{{
 -------------------------------------------------------------------------------
 main :: IO ()
 main = do
-    wsbar <- spawnPipe "xmobar $HOME/.xmonad/xmobarrc"
+    --wsbar <- spawnPipe "xmobar $HOME/.xmonad/xmobarrc"
+    --_ <- spawnPipe "polybar main"
+    _ <- spawnPipe "~/.config/polybar/launch.sh"
+    de <- doesFileExist wsLogfile
+    case de of
+        True -> return ()
+        _    -> createNamedPipe wsLogfile stdFileMode
     xmonad . docks . ewmh $ defaultConfig                                   -- docks (for xmobar), ewmh (for libreoffice ,etc...)
         { borderWidth        = borderwidth                                   -- border width
         --, terminal           = "urxvtc; if [ $? -eq 2 ]; then urxvtd -q -o -f; urxvtc; fi"                                       -- terminal
@@ -96,13 +130,14 @@ main = do
         , modMask            = modm                                          -- mod key
         , startupHook        = do
                                 spawn "xscreensaver -no-splash"                 -- start up program
-                                spawn "~/alias/display.sh auto"
+                                spawn "~/alias/display auto"
                                 spawn "wmname LG3D"                         -- for Android Studio (https://qiita.com/matoruru/items/506e27ee60f7053a39a8)
         , layoutHook         = myLayout                  -- layout
          -- xmobar setting
         , logHook            = do
-                                myLogHook wsbar >> updatePointer (0.5, 0.5) (0, 0)
+                                --myLogHook wsbar >> updatePointer (0.5, 0.5) (0, 0)
                                 fadeInactiveLogHook 0xdddddddd
+                                eventLogHook wsLogfile
         }
 -------------------------------------------------------------------- }}}
 -- Keymap: window operations                                         {{{
@@ -112,7 +147,7 @@ main = do
         , ("M-s", spawn "xscreensaver-command --lock")
         , ("M-p", spawn "rofi -show drun")
         , ("M-S-r", do
-            spawn "~/alias/display.sh auto"
+            spawn "~/alias/display auto"
             screenWorkspace 1 >>= flip whenJust (windows.W.view)
             (windows . W.greedyView) "8"
             screenWorkspace 0 >>= flip whenJust (windows.W.view)
