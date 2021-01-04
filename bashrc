@@ -8,6 +8,8 @@
 alias ls='ls --color=auto -l'
 alias glog='git log --oneline --graph --decorate'
 alias mkdir='mkdir -p'
+alias mv='mv -i'
+alias cp='cp -i'
 
 # history にコマンドの実行日時を記録するようにする
 HISTTIMEFORMAT='%Y-%m-%dT%T%z '
