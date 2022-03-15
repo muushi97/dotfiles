@@ -43,6 +43,7 @@ foreground = ${colors.fg}
 font-0 = "Fantasque Sans Mono:pixelsize=10;3"
 font-1 = "Iosevka Nerd Font:pixelsize=14;3"
 cursor-click = pointer
+monitor = ${env:MONITOR:}
 ;==========================================================
 
 ;====Module settings+======================================

@@ -3,6 +3,7 @@ bash:
   - .bashrc: bashrc
 xmonad:
   - .xmonad.hs: xmonad.hs
+  - .xmonad/build: xmonad/build
 vim:
   - .vimrc: vimrc
   - .vim/colors: vim/colors
@@ -20,6 +21,8 @@ startx:
   - .xinitrc: xinitrc
 xmobar:
   - .xmobarrc: xmobarrc.hs
+picom:
+  - .config/picom.conf: picom.conf
 ls:
   - .Xmodmap: Xmodmap
   - .xscreensaver: xscreensaver

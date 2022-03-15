@@ -7,69 +7,67 @@
 --                                                                           --
 -------------------------------------------------------------------------------
 
-import System.Cmd
-import Data.List(isPrefixOf, find, sort, sortBy)
-import Data.Maybe
+import           Control.Monad
 
--------------------------------------------------------------------------------
--- Import modules                                                           {{{
--------------------------------------------------------------------------------
+import           Data.List(isPrefixOf, find, sort, sortBy)
+import           Data.Maybe
 import qualified Data.Map as M
-import qualified XMonad.StackSet as W
-import Control.Monad
---import Control.Monad (liftM2)          -- myManageHookShift
-import Data.List
-import Data.Monoid
-import Data.Ord
-import System.Directory
-import System.Posix.Files
-import System.IO                       -- for xmobar
-import XMonad.Config.Desktop (desktopLayoutModifiers)
+import           Data.Monoid
+import           Data.List
+import           Data.Ord
 
-import XMonad
+import           Graphics.X11.ExtraTypes.XF86
+
+import           System.Cmd
+import           System.Directory
+import           System.Posix.Files
+import           System.IO                       -- for xmobar
+
+import           XMonad.Config.Desktop (desktopLayoutModifiers)
+
+import           XMonad
 import qualified XMonad.StackSet as W  -- myManageHookShift
 
-import XMonad.Actions.CopyWindow
-import XMonad.Actions.CycleWS
+import           XMonad.Actions.CopyWindow
+import           XMonad.Actions.CycleWS
 import qualified XMonad.Actions.FlexibleResize as Flex -- flexible resize
-import XMonad.Actions.FloatKeys
-import XMonad.Actions.UpdatePointer
-import XMonad.Actions.WindowGo
-import XMonad.Actions.MouseGestures
+import           XMonad.Actions.FloatKeys
+import           XMonad.Actions.UpdatePointer
+import           XMonad.Actions.WindowGo
+import           XMonad.Actions.MouseGestures
+import           XMonad.Actions.CycleWS
 
-import XMonad.Hooks.DynamicLog         -- for xmobar
-import XMonad.Hooks.EwmhDesktops
-import XMonad.Hooks.ManageDocks        -- avoid xmobar area
-import XMonad.Hooks.ManageHelpers
-import XMonad.Hooks.FadeInactive       -- xcompmgr での透過に使う
-import XMonad.Hooks.FadeWindows        -- xcompmgr での透過に使う
+import           XMonad.Hooks.DynamicLog         -- for xmobar
+import           XMonad.Hooks.EwmhDesktops
+import           XMonad.Hooks.ManageDocks        -- avoid xmobar area
+import           XMonad.Hooks.ManageHelpers
+import           XMonad.Hooks.FadeInactive       -- xcompmgr での透過に使う
+import           XMonad.Hooks.FadeWindows        -- xcompmgr での透過に使う
 
-import XMonad.Layout
-import XMonad.Layout.DragPane          -- see only two window
-import XMonad.Layout.Gaps
-import XMonad.Layout.NoBorders         -- In Full mode, border is no use
-import XMonad.Layout.PerWorkspace      -- Configure layouts on a per-workspace
-import XMonad.Layout.ResizableTile     -- Resizable Horizontal border
-import XMonad.Layout.MultiToggle
-import XMonad.Layout.MultiToggle.Instances
-import XMonad.Layout.Simplest
-import XMonad.Layout.SimplestFloat
-import XMonad.Layout.Spacing           -- this makes smart space around windows
-import XMonad.Layout.ToggleLayouts     -- Full window at any time
-import XMonad.Layout.TwoPane
-import XMonad.Layout.Named             -- named layout
+import           XMonad.Layout
+import           XMonad.Layout.DragPane          -- see only two window
+import           XMonad.Layout.Gaps
+import           XMonad.Layout.NoBorders         -- In Full mode, border is no use
+import           XMonad.Layout.PerWorkspace      -- Configure layouts on a per-workspace
+import           XMonad.Layout.ResizableTile     -- Resizable Horizontal border
+import           XMonad.Layout.MultiToggle
+import           XMonad.Layout.MultiToggle.Instances
+import           XMonad.Layout.Simplest
+import           XMonad.Layout.SimplestFloat
+import           XMonad.Layout.Spacing           -- this makes smart space around windows
+import           XMonad.Layout.ToggleLayouts     -- Full window at any time
+import           XMonad.Layout.TwoPane
+import           XMonad.Layout.Named             -- named layout
 
-import XMonad.Prompt
-import XMonad.Prompt.Window            -- pops up a prompt with window names
-import XMonad.Util.EZConfig            -- removeKeys, additionalKeys
-import XMonad.Util.Run
-import XMonad.Util.Run(spawnPipe)      -- spawnPipe, hPutStrLn
-import XMonad.Util.SpawnOnce
-import XMonad.Util.WorkspaceCompare
+import           XMonad.Prompt
+import           XMonad.Prompt.Window            -- pops up a prompt with window names
+import           XMonad.Util.EZConfig            -- removeKeys, additionalKeys
+import           XMonad.Util.Run
+import           XMonad.Util.Run(spawnPipe)      -- spawnPipe, hPutStrLn
+import           XMonad.Util.SpawnOnce
+import           XMonad.Util.WorkspaceCompare
 
-import XMonad.Actions.CycleWS
-
-import Graphics.X11.ExtraTypes.XF86
+import           Lib.Hoge
 
 
 --------------------------------------------------------------------------- }}}
@@ -148,12 +146,13 @@ polyBar log config = config { startupHook = startupHook', logHook = logHook' }
             eventLogHook log
 
 
+
 --------------------------------------------------------------------------- }}}
 -- main                                                                     {{{
 -------------------------------------------------------------------------------
 main :: IO ()
 main = do
-    xmonad . docks . ewmh . polyBar wsLogfile $ defaultConfig                                       -- docks (for xmobar), ewmh (for libreoffice ,etc...)
+    xmonad . docks . ewmh . polyBar wsLogfile $ def                                       -- docks (for xmobar), ewmh (for libreoffice ,etc...)
         { borderWidth        = borderwidth                                      -- border width
         , terminal           = "urxvt"                                          -- terminal
         , normalBorderColor  = colorNonActive                                   -- border color then active
