@@ -4,7 +4,7 @@ DOTFILES_REPOSITORY=https://github.com/muushi97/dotfiles.git
 DOTFILES_PATH=~/dotfiles
 
 exist_command() {
-    eval "$(echo $PATH | tr ':' '\n' | sed -e "s/^/find /; s/$/ -name \"$1\"/")" | wc -l
+    eval "$(echo $PATH | tr ':' '\n' | grep -v "/mnt/" | sed -e "s/^/find -L \"/" -e "s/$/\" -name \"$1\"/")" | wc -l
 }
 
 dotfile_clone() {
@@ -23,15 +23,20 @@ dotfile_clone() {
 }
 
 dotfile_link() {
-    cat $DOTFILES_PATH/link.yaml | $DOTFILES_PATH/bin/parseyaml | sed -e "s/^\///; s/\[[0-9]\+\]\// /" |
+    cat $DOTFILES_PATH/link.yaml | $DOTFILES_PATH/bin/parseyaml | sed -e "s/^\///" -e "s/\[[0-9]\+\]\// /" |
     awk '{
         print "if [ $(exist_command "$1") -eq 0 ]; then"
+        print "    echo "$1" is not installed."
         print "    :"
         print "else"
+        print "   echo "$1" is installed."
         print "   if [ -e '$HOME'/"$2" ]; then"
         print "     echo '$HOME'/"$2": already exists"
         print "   else"
-        print "     ln -s '$DOTFILES_PATH'/"$3" '$HOME'/"$2
+        print "     echo create directory \"$(dirname \"'$HOME'/"$2"\")\""
+        print "     mkdir -p \"$(dirname \"'$HOME'/"$2"\")\""
+        print "     echo link from \"'$DOTFILES_PATH'/"$3"\" to \"'$HOME'/"$2"\""
+        print "     ln -s \"'$DOTFILES_PATH'/"$3"\" \"'$HOME'/"$2"\""
         print "   fi"
         print "fi"
     }'
@@ -63,9 +68,9 @@ dotfile_update() {
 if [ $# -eq 0 ]; then
     dotfile_clone && dotfile_install
 elif [ $# -eq 1 ]; then
-    if [[ "$1" = "install" ]]; then
+    if [ "$1" = "install" ]; then
         dotfile_install
-    elif [[ "$1" = "update" ]]; then
+    elif [ "$1" = "update" ]; then
         dotfile_update
     else
         echo "error" 1>&2
