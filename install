@@ -120,12 +120,27 @@ dotfile_update() {
     update_vim_plugins
 }
 
+# links ファイル内の各コマンドの存在をチェックして結果を表示する
+dotfile_check() {
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        if exist_command "$cmd"; then
+            echo "[ ok ] $cmd"
+        else
+            echo "[ -- ] $cmd"
+        fi
+    done < "$DOTFILES_PATH/links"
+}
+
 case "$#" in
     0) dotfile_clone && dotfile_install ;;
     1)
         case "$1" in
             install) dotfile_install ;;
             update)  dotfile_update ;;
+            check)   dotfile_check ;;
             *) echo "error: unknown command '$1'" >&2; exit 1 ;;
         esac
         ;;
