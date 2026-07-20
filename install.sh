@@ -107,6 +107,29 @@ install_git_completion() {
     curl "$base_url/git-prompt.sh"       > ~/.git-prompt.sh
 }
 
+# wezterm が使うフォントを Windows 側の wezterm 設定ディレクトリへダウンロードする
+install_wezterm_fonts() {
+    local font_url="https://int10h.org/oldschool-pc-fonts/download/oldschool_pc_font_pack_v2.2_linux.zip"
+    local dest_dir
+    dest_dir="$(resolve_win_home)/.config/wezterm/fonts"
+    local zip_wsl_path
+    zip_wsl_path=$(mktemp --suffix=.zip)
+
+    if ! exist_win_command wezterm; then
+        echo "wezterm is not installed on Windows, skipping."
+        rm -f "$zip_wsl_path"
+        return
+    fi
+
+    curl.exe -fsSL -o "$(wslpath -w "$zip_wsl_path")" "$font_url" \
+        || { echo "Failed to download fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
+    mkdir -p "$dest_dir"
+    unzip -j "$zip_wsl_path" '*Mx437*VGA*8x16*' -d "$dest_dir" \
+        || { echo "Failed to extract fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
+    rm -f "$zip_wsl_path"
+    echo "Installed wezterm fonts to $dest_dir"
+}
+
 # WSL 環境かどうかを確認する
 is_wsl() {
     grep -qi 'microsoft\|wsl' /proc/sys/kernel/osrelease 2>/dev/null
@@ -153,17 +176,18 @@ dotfile_win_install() {
 # WSL 環境では Windows 側へのコピーも行う
 dotfile_install() {
     dotfile_link
-    install_vim_plugins
-    install_git_completion
+    #install_vim_plugins
+    #install_git_completion
     if is_wsl; then
         dotfile_win_install
+        install_wezterm_fonts
     fi
 }
 
 # シンボリックリンクを更新し、vim プラグインを最新化する
 dotfile_update() {
     dotfile_link
-    update_vim_plugins
+    #update_vim_plugins
 }
 
 # links ファイル内の各コマンドの存在をチェックして結果を表示する
