@@ -131,6 +131,9 @@ config.scrollback_lines = 10000
 -- Mouse
 config.pane_focus_follows_mouse = true
 
+-- ビープ音を無効化
+config.audible_bell = "Disabled"
+
 -- IME
 config.use_ime = true
 
