@@ -37,7 +37,7 @@ exist_function() {
 }
 
 # dotfiles リポジトリが未取得であれば GitHub から clone する
-dotfile_clone() {
+cmd_clone() {
     if [ -d "$DOTFILES_PATH" ]; then
         echo "$DOTFILES_PATH: already exists" >&2
         exit 1
@@ -74,7 +74,7 @@ create_link() {
 }
 
 # links ファイルを読んで各エントリのシンボリックリンクを作成する
-dotfile_link() {
+link_dotfiles() {
     while IFS=' ' read -r cmd dest src; do
         case "$cmd" in
             ''|\#*) continue ;;
@@ -177,7 +177,7 @@ copy_to_win() {
 }
 
 # links.windows を読んで Windows 側へファイルをコピーする
-dotfile_win_install() {
+deploy_win_dotfiles() {
     while IFS=' ' read -r cmd dest src; do
         case "$cmd" in
             ''|\#*) continue ;;
@@ -187,7 +187,7 @@ dotfile_win_install() {
 }
 
 # 必要なファイルを事前生成・ダウンロードする（WSL 専用）
-dotfile_prepare() {
+cmd_prepare() {
     if ! is_wsl; then
         echo "prepare is only supported in WSL." >&2
         exit 1
@@ -197,24 +197,24 @@ dotfile_prepare() {
 
 # シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
 # WSL 環境では Windows 側へのコピーも行う
-dotfile_apply() {
-    dotfile_link
+cmd_apply() {
+    link_dotfiles
     #install_vim_plugins
     #install_git_completion
     if is_wsl; then
-        dotfile_win_install
+        deploy_win_dotfiles
         deploy_wezterm_fonts
     fi
 }
 
 # シンボリックリンクを更新し、vim プラグインを最新化する
-dotfile_update() {
-    dotfile_link
+cmd_update() {
+    link_dotfiles
     #update_vim_plugins
 }
 
 # links ファイル内の各コマンドの存在をチェックして結果を表示する
-dotfile_check() {
+cmd_check() {
     awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.linux" | sort -u | \
         while IFS= read -r cmd; do
             if exist_command "$cmd"; then
@@ -254,11 +254,11 @@ case "$#" in
     0) usage ;;
     1)
         case "$1" in
-            clone)   dotfile_clone ;;
-            prepare) dotfile_prepare ;;
-            apply)   dotfile_apply ;;
-            update)  dotfile_update ;;
-            check)   dotfile_check ;;
+            clone)   cmd_clone ;;
+            prepare) cmd_prepare ;;
+            apply)   cmd_apply ;;
+            update)  cmd_update ;;
+            check)   cmd_check ;;
             help)    usage ;;
             *)       usage >&2; exit 1 ;;
         esac
