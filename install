@@ -114,6 +114,53 @@ dotfile_install() {
     install_git_completion
 }
 
+# WSL 環境かどうかを確認する
+is_wsl() {
+    grep -qi 'microsoft\|wsl' /proc/sys/kernel/osrelease 2>/dev/null
+}
+
+# WSL から Windows のホームディレクトリパスを取得する
+resolve_win_home() {
+    wslpath "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')"
+}
+
+# Windows 側の PATH にコマンドが存在するか確認する
+exist_win_command() {
+    cmd.exe /c "where $1" > /dev/null 2>&1
+}
+
+# links.win の1エントリに対応するファイルを Windows 側へコピーする
+# $1: 依存コマンド名, $2: コピー先パス（Windows ホーム相対）, $3: コピー元パス（DOTFILES_PATH 相対）
+copy_to_win() {
+    local cmd="$1"
+    local dest="$(resolve_win_home)/$2"
+    local src="$DOTFILES_PATH/$3"
+
+    if ! exist_win_command "$cmd"; then
+        echo "$cmd is not installed on Windows, skipping."
+        return
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+    echo "Copied: $src -> $dest"
+}
+
+# links.win を読んで Windows 側へファイルをコピーする
+dotfile_win_install() {
+    if ! is_wsl; then
+        echo "error: wininstall requires WSL environment." >&2
+        exit 1
+    fi
+
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        copy_to_win "$cmd" "$dest" "$src"
+    done < "$DOTFILES_PATH/links.win"
+}
+
 # シンボリックリンクを更新し、vim プラグインを最新化する
 dotfile_update() {
     dotfile_link
@@ -122,16 +169,25 @@ dotfile_update() {
 
 # links ファイル内の各コマンドの存在をチェックして結果を表示する
 dotfile_check() {
-    while IFS=' ' read -r cmd dest src; do
-        case "$cmd" in
-            ''|\#*) continue ;;
-        esac
-        if exist_command "$cmd"; then
-            echo "[ installed ] $cmd"
-        else
-            echo "[ not found ] $cmd"
-        fi
-    done < "$DOTFILES_PATH/links"
+    awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links" | sort -u | \
+        while IFS= read -r cmd; do
+            if exist_command "$cmd"; then
+                echo "[ installed ] $cmd"
+            else
+                echo "[ not found ] $cmd"
+            fi
+        done
+
+    if is_wsl; then
+        awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.win" | sort -u | \
+            while IFS= read -r cmd; do
+                if exist_win_command "$cmd"; then
+                    echo "[ installed ] $cmd (win)"
+                else
+                    echo "[ not found ] $cmd (win)"
+                fi
+            done
+    fi
 }
 
 case "$#" in
@@ -140,7 +196,8 @@ case "$#" in
         case "$1" in
             install) dotfile_install ;;
             update)  dotfile_update ;;
-            check)   dotfile_check ;;
+            check)      dotfile_check ;;
+            wininstall) dotfile_win_install ;;
             *) echo "error: unknown command '$1'" >&2; exit 1 ;;
         esac
         ;;

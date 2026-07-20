@@ -1,0 +1,2 @@
+# command   dest (Windows home 相対)           src (DOTFILES_PATH 相対)
+wezterm     .config/wezterm/wezterm.lua         wezterm.lua
