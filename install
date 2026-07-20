@@ -80,7 +80,7 @@ dotfile_link() {
             ''|\#*) continue ;;
         esac
         create_link "$cmd" "$dest" "$src"
-    done < "$DOTFILES_PATH/links"
+    done < "$DOTFILES_PATH/links.linux"
 }
 
 # vim プラグインを ~/.vim/pack/ 以下に clone する
@@ -129,7 +129,7 @@ exist_win_command() {
     cmd.exe /c "where $1" > /dev/null 2>&1
 }
 
-# links.win の1エントリに対応するファイルを Windows 側へコピーする
+# links.windows の1エントリに対応するファイルを Windows 側へコピーする
 # $1: 依存コマンド名, $2: コピー先パス（Windows ホーム相対）, $3: コピー元パス（DOTFILES_PATH 相対）
 copy_to_win() {
     local cmd="$1"
@@ -146,7 +146,7 @@ copy_to_win() {
     echo "Copied: $src -> $dest"
 }
 
-# links.win を読んで Windows 側へファイルをコピーする
+# links.windows を読んで Windows 側へファイルをコピーする
 dotfile_win_install() {
     if ! is_wsl; then
         echo "error: wininstall requires WSL environment." >&2
@@ -158,7 +158,7 @@ dotfile_win_install() {
             ''|\#*) continue ;;
         esac
         copy_to_win "$cmd" "$dest" "$src"
-    done < "$DOTFILES_PATH/links.win"
+    done < "$DOTFILES_PATH/links.windowsdows"
 }
 
 # シンボリックリンクを更新し、vim プラグインを最新化する
@@ -169,7 +169,7 @@ dotfile_update() {
 
 # links ファイル内の各コマンドの存在をチェックして結果を表示する
 dotfile_check() {
-    awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links" | sort -u | \
+    awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.linux" | sort -u | \
         while IFS= read -r cmd; do
             if exist_command "$cmd"; then
                 echo "[ installed ] $cmd"
@@ -179,7 +179,7 @@ dotfile_check() {
         done
 
     if is_wsl; then
-        awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.win" | sort -u | \
+        awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.windowsdows" | sort -u | \
             while IFS= read -r cmd; do
                 if exist_win_command "$cmd"; then
                     echo "[ installed ] $cmd (win)"
