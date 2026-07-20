@@ -4,12 +4,36 @@ DOTFILES_REPOSITORY=https://github.com/muushi97/dotfiles.git
 DOTFILES_PATH=~/dotfiles
 
 # WSL 環境で Windows 側パス（/mnt/ 配下）を除外しながら、
-# 指定コマンドが PATH に存在するか確認し、見つかった数を返す
+# 外部コマンドまたは組込みコマンドが存在するか確認する
 exist_command() {
-    local cmd="$1"
-    printf '%s\n' "$PATH" | tr ':' '\n' | grep -v '/mnt/' | while IFS= read -r dir; do
-        [ -x "$dir/$cmd" ] && printf '1\n'
-    done | wc -l
+    local result
+    result=$(command -v "$1" 2>/dev/null) || return 1
+    case "$result" in
+        alias\ *) return 1 ;;              # エイリアスは除外
+        /*)       printf '%s\n' "$result" | grep -qv '^/mnt/' ;;  # 外部コマンド: WSL フィルタ
+        *)        return 0 ;;              # 組込みコマンド
+    esac
+}
+
+# エイリアスが存在するか確認する
+exist_alias() {
+    command -v "$1" 2>/dev/null | grep -q '^alias '
+}
+
+# 組込みコマンドのみ存在するか確認する
+exist_builtin() {
+    local result
+    result=$(command -v "$1" 2>/dev/null) || return 1
+    case "$result" in
+        /*|alias\ *) return 1 ;;
+        *)           return 0 ;;
+    esac
+}
+
+# シェル関数が存在するか確認する
+# command -v はシェルによって出力が異なるため type を使用する
+exist_function() {
+    type "$1" 2>/dev/null | grep -q 'function'
 }
 
 # dotfiles リポジトリが未取得であれば GitHub から clone する
@@ -19,7 +43,7 @@ dotfile_clone() {
         exit 1
     fi
 
-    if [ "$(exist_command git)" -eq 0 ]; then
+    if ! exist_command git; then
         echo "git is not installed." >&2
         exit 1
     fi
@@ -34,7 +58,7 @@ create_link() {
     local dest="$HOME/$2"
     local src="$DOTFILES_PATH/$3"
 
-    if [ "$(exist_command "$cmd")" -eq 0 ]; then
+    if ! exist_command "$cmd"; then
         echo "$cmd is not installed, skipping."
         return
     fi
