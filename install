@@ -107,13 +107,6 @@ install_git_completion() {
     curl "$base_url/git-prompt.sh"       > ~/.git-prompt.sh
 }
 
-# シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
-dotfile_install() {
-    dotfile_link
-    install_vim_plugins
-    install_git_completion
-}
-
 # WSL 環境かどうかを確認する
 is_wsl() {
     grep -qi 'microsoft\|wsl' /proc/sys/kernel/osrelease 2>/dev/null
@@ -148,17 +141,23 @@ copy_to_win() {
 
 # links.windows を読んで Windows 側へファイルをコピーする
 dotfile_win_install() {
-    if ! is_wsl; then
-        echo "error: wininstall requires WSL environment." >&2
-        exit 1
-    fi
-
     while IFS=' ' read -r cmd dest src; do
         case "$cmd" in
             ''|\#*) continue ;;
         esac
         copy_to_win "$cmd" "$dest" "$src"
-    done < "$DOTFILES_PATH/links.windowsdows"
+    done < "$DOTFILES_PATH/links.windows"
+}
+
+# シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
+# WSL 環境では Windows 側へのコピーも行う
+dotfile_install() {
+    dotfile_link
+    install_vim_plugins
+    install_git_completion
+    if is_wsl; then
+        dotfile_win_install
+    fi
 }
 
 # シンボリックリンクを更新し、vim プラグインを最新化する
@@ -179,7 +178,7 @@ dotfile_check() {
         done
 
     if is_wsl; then
-        awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.windowsdows" | sort -u | \
+        awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.windows" | sort -u | \
             while IFS= read -r cmd; do
                 if exist_win_command "$cmd"; then
                     echo "[ installed ] $cmd (win)"
@@ -190,16 +189,30 @@ dotfile_check() {
     fi
 }
 
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <subcommand>
+
+Subcommands:
+  clone    リポジトリを $DOTFILES_PATH へ clone する
+  install  dotfiles をインストールする（WSL 環境では Windows 側も対象）
+  update   dotfiles を更新する
+  check    各コマンドのインストール状況を確認する
+  help     この使い方を表示する
+EOF
+}
+
 case "$#" in
-    0) dotfile_clone && dotfile_install ;;
+    0) usage ;;
     1)
         case "$1" in
+            clone)   dotfile_clone ;;
             install) dotfile_install ;;
             update)  dotfile_update ;;
-            check)      dotfile_check ;;
-            wininstall) dotfile_win_install ;;
-            *) echo "error: unknown command '$1'" >&2; exit 1 ;;
+            check)   dotfile_check ;;
+            help)    usage ;;
+            *)       usage >&2; exit 1 ;;
         esac
         ;;
-    *) echo "error: too many arguments" >&2; exit 1 ;;
+    *) usage >&2; exit 1 ;;
 esac
