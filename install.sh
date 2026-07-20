@@ -197,7 +197,7 @@ dotfile_prepare() {
 
 # シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
 # WSL 環境では Windows 側へのコピーも行う
-dotfile_install() {
+dotfile_apply() {
     dotfile_link
     #install_vim_plugins
     #install_git_completion
@@ -243,7 +243,7 @@ Usage: $(basename "$0") <subcommand>
 Subcommands:
   clone    リポジトリを ~/dotfiles へ clone する
   prepare  必要なファイルを事前ダウンロード・生成する（WSL 専用）
-  install  dotfiles をインストールする（WSL 環境では Windows 側も対象）
+  apply    dotfiles を環境へ適用する（WSL 環境では Windows 側も対象）
   update   dotfiles を更新する
   check    各コマンドのインストール状況を確認する
   help     この使い方を表示する
@@ -256,7 +256,7 @@ case "$#" in
         case "$1" in
             clone)   dotfile_clone ;;
             prepare) dotfile_prepare ;;
-            install) dotfile_install ;;
+            apply)   dotfile_apply ;;
             update)  dotfile_update ;;
             check)   dotfile_check ;;
             help)    usage ;;
