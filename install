@@ -127,9 +127,9 @@ dotfile_check() {
             ''|\#*) continue ;;
         esac
         if exist_command "$cmd"; then
-            echo "[ ok ] $cmd"
+            echo "[ installed ] $cmd"
         else
-            echo "[ -- ] $cmd"
+            echo "[ not found ] $cmd"
         fi
     done < "$DOTFILES_PATH/links"
 }
