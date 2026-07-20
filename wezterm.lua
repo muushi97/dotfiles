@@ -94,10 +94,11 @@ config.colors = {
 ----------------------------------------------------------------
 -- カーソル: 古い端末らしい点滅ブロックカーソル
 ----------------------------------------------------------------
-config.default_cursor_style = 'BlinkingBlock'
+config.default_cursor_style = 'BlinkingUnderline'
 config.cursor_blink_rate = 500
 config.cursor_blink_ease_in = 'Constant'
 config.cursor_blink_ease_out = 'Constant'
+config.underline_thickness = "2px"
 
 
 ----------------------------------------------------------------
