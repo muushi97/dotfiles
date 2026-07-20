@@ -64,28 +64,28 @@ config.colors = {
   },
 
   tab_bar = {
-    background = '#3d56d5',
+    background = '#5cb4fe',
 
     active_tab = {
-      bg_color = '#3d56d5',
-      fg_color = '#434555',
+      bg_color = '#f8fcfd',
+      fg_color = '#4d4d4d',
     },
     inactive_tab = {
-      bg_color = '#3d56d5',
-      fg_color = '#5cb4fe',
+      bg_color = '#5cb4fe',
+      fg_color = '#f8fcfd',
     },
     inactive_tab_hover = {
-      bg_color = '#333333',
-      fg_color = '#AAAAAA',
+      bg_color = '#5cb4fe',
+      fg_color = '#c4b58c',
     },
 
     new_tab = {
-      bg_color = '#000000',
-      fg_color = '#AAAAAA',
+      bg_color = '#f8fcfd',
+      fg_color = '#474d65',
     },
     new_tab_hover = {
-      bg_color = '#c4b58c',
-      fg_color = '#FFFFFF',
+      bg_color = '#f8fcfd',
+      fg_color = '#c4b58c',
     },
   },
 }
@@ -148,30 +148,29 @@ config.show_new_tab_button_in_tab_bar = true
 --config.show_close_tab_button_in_tabs = false
 
 config.window_frame = {
-  font = wezterm.font('Segoe UI', { weight = 'Regular' }),
+  font = wezterm.font('UD Digi Kyokasho N', { weight = 'Regular' }),
   font_size = 11.0,
-  inactive_titlebar_bg = '#5cb4fe',
-  active_titlebar_bg = '#5cb4fe',
-  inactive_titlebar_fg = '#3d56d5',
-  active_titlebar_fg = '#3d56d5',
+  inactive_titlebar_bg = '#3d56d5',
+  active_titlebar_bg = '#3d56d5',
+  inactive_titlebar_fg = '#333333',
+  active_titlebar_fg = '#333333',
 }
 --config.window_background_gradient = {
 --  colors = { "#000000" },
 --}
  
--- タブバーもレトロな見た目に
 --config.use_fancy_tab_bar = false
 --config.tab_bar_at_bottom = false
 --config.hide_tab_bar_if_only_one_tab = true
 
 -- ステータスバー、右上に時間を
-wezterm.on('update-right-status', function(window, _pane)
-  local date = wezterm.strftime '%Y-%m-%d %H:%M'
-  window:set_right_status(wezterm.format {
-    { Foreground = { AnsiColor = 'Silver' } },
-    { Text = date .. '  ' },
-  })
-end)
+--wezterm.on('update-right-status', function(window, _pane)
+--  local date = wezterm.strftime '%Y-%m-%d %H:%M'
+--  window:set_right_status(wezterm.format {
+--    { Foreground = { AnsiColor = 'Silver' } },
+--    { Text = date .. '  ' },
+--  })
+--end)
 
 
 ----------------------------------------------------------------
