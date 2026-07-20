@@ -3,81 +3,106 @@
 DOTFILES_REPOSITORY=https://github.com/muushi97/dotfiles.git
 DOTFILES_PATH=~/dotfiles
 
+# WSL 環境で Windows 側パス（/mnt/ 配下）を除外しながら、
+# 指定コマンドが PATH に存在するか確認し、見つかった数を返す
 exist_command() {
-    eval "$(echo $PATH | tr ':' '\n' | grep -v "/mnt/" | sed -e "s/^/find -L \"/" -e "s/$/\" -name \"$1\"/")" | wc -l
+    local cmd="$1"
+    printf '%s\n' "$PATH" | tr ':' '\n' | grep -v '/mnt/' | while IFS= read -r dir; do
+        [ -x "$dir/$cmd" ] && printf '1\n'
+    done | wc -l
 }
 
+# dotfiles リポジトリが未取得であれば GitHub から clone する
 dotfile_clone() {
-    if [ -d $DOTFILES_PATH ]; then
-        echo "$DOTFILES_PATH: already exists" 1>&2
+    if [ -d "$DOTFILES_PATH" ]; then
+        echo "$DOTFILES_PATH: already exists" >&2
         exit 1
     fi
 
-    if [ $(exist_command git) -eq 0 ]; then
-        # 'git' is not exist
-        :
-    else
-        # 'git' is exist
-        git clone --recursive "$DOTFILES_REPOSITORY" "$DOTFILES_PATH"
+    if [ "$(exist_command git)" -eq 0 ]; then
+        echo "git is not installed." >&2
+        exit 1
     fi
+
+    git clone --recursive "$DOTFILES_REPOSITORY" "$DOTFILES_PATH"
 }
 
+# link.yaml の1エントリに対応するシンボリックリンクを作成する
+# $1: 依存コマンド名, $2: リンク先パス（$HOME 相対）, $3: リンク元パス（$DOTFILES_PATH 相対）
+create_link() {
+    local cmd="$1"
+    local dest="$HOME/$2"
+    local src="$DOTFILES_PATH/$3"
+
+    if [ "$(exist_command "$cmd")" -eq 0 ]; then
+        echo "$cmd is not installed, skipping."
+        return
+    fi
+
+    if [ -e "$dest" ]; then
+        echo "$dest: already exists, skipping."
+        return
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    ln -s "$src" "$dest"
+    echo "Linked: $src -> $dest"
+}
+
+# link.yaml を解析して各エントリのシンボリックリンクを作成する
 dotfile_link() {
-    cat $DOTFILES_PATH/link.yaml | $DOTFILES_PATH/bin/parseyaml | sed -e "s/^\///" -e "s/\[[0-9]\+\]\// /" |
-    awk '{
-        print "if [ $(exist_command "$1") -eq 0 ]; then"
-        print "    echo "$1" is not installed."
-        print "    :"
-        print "else"
-        print "   echo "$1" is installed."
-        print "   if [ -e '$HOME'/"$2" ]; then"
-        print "     echo '$HOME'/"$2": already exists"
-        print "   else"
-        print "     echo create directory \"$(dirname \"'$HOME'/"$2"\")\""
-        print "     mkdir -p \"$(dirname \"'$HOME'/"$2"\")\""
-        print "     echo link from \"'$DOTFILES_PATH'/"$3"\" to \"'$HOME'/"$2"\""
-        print "     ln -s \"'$DOTFILES_PATH'/"$3"\" \"'$HOME'/"$2"\""
-        print "   fi"
-        print "fi"
-    }'
+    cat "$DOTFILES_PATH/link.yaml" | "$DOTFILES_PATH/bin/parseyaml" | \
+        sed -e 's/^\///' -e 's/\[[0-9]\+\]\// /' | \
+        while IFS=' ' read -r cmd dest src; do
+            create_link "$cmd" "$dest" "$src"
+        done
 }
 
+# vim プラグインを ~/.vim/pack/ 以下に clone する
+install_vim_plugins() {
+    local vimplugin_dir=~/.vim/pack
+    git clone https://github.com/lilydjwg/colorizer.git "$vimplugin_dir/colorizer/start/colorizer"
+    git clone https://github.com/scrooloose/nerdtree.git "$vimplugin_dir/nerdtree/start/nerdtree"
+    git clone https://github.com/cocopon/pgmnt.vim.git   "$vimplugin_dir/pgmnt/start/pgmnt"
+}
+
+# vim プラグインを pull --rebase で最新化する
+update_vim_plugins() {
+    local vimplugin_dir=~/.vim/pack
+    git -C "$vimplugin_dir/colorizer/start/colorizer" pull --rebase
+    git -C "$vimplugin_dir/nerdtree/start/nerdtree"  pull --rebase
+    git -C "$vimplugin_dir/pgmnt/start/pgmnt"        pull --rebase
+}
+
+# git 補完スクリプトを取得する
+install_git_completion() {
+    local git_version="2.5.0"
+    local base_url="https://raw.githubusercontent.com/git/git/v${git_version}/contrib/completion"
+    curl "$base_url/git-completion.bash" > ~/.git-completion.bash
+    curl "$base_url/git-prompt.sh"       > ~/.git-prompt.sh
+}
+
+# シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
 dotfile_install() {
-    eval "$(dotfile_link)"
-
-    VIMPLUGIN_DIR=~/.vim/pack
-    git clone https://github.com/lilydjwg/colorizer.git $VIMPLUGIN_DIR/colorizer/start/colorizer
-    git clone https://github.com/scrooloose/nerdtree.git $VIMPLUGIN_DIR/nerdtree/start/nerdtree
-    git clone https://github.com/cocopon/pgmnt.vim.git $VIMPLUGIN_DIR/pgmnt/start/pgmnt
-
-    GIT_VERSION="2.5.0"
-    curl https://raw.githubusercontent.com/git/git/v${GIT_VERSION}/contrib/completion/git-completion.bash > ~/.git-completion.bash
-    curl https://raw.githubusercontent.com/git/git/v${GIT_VERSION}/contrib/completion/git-prompt.sh > ~/.git-prompt.sh
+    dotfile_link
+    install_vim_plugins
+    install_git_completion
 }
 
+# シンボリックリンクを更新し、vim プラグインを最新化する
 dotfile_update() {
-    eval "$(dotfile_link)"
-
-    VIMPLUGIN_DIR=~/.vim/pack
-    git -C $VIMPLUGIN_DIR/colorizer/start/colorizer pull --rebase
-    git -C $VIMPLUGIN_DIR/nerdtree/start/nerdtree pull --rebase
-    git -C $VIMPLUGIN_DIR/pgmnt/start/pgmnt pull --rebase
+    dotfile_link
+    update_vim_plugins
 }
 
-
-if [ $# -eq 0 ]; then
-    dotfile_clone && dotfile_install
-elif [ $# -eq 1 ]; then
-    if [ "$1" = "install" ]; then
-        dotfile_install
-    elif [ "$1" = "update" ]; then
-        dotfile_update
-    else
-        echo "error" 1>&2
-    fi
-else
-    echo "error" 1>&2
-fi
-
-
-
+case "$#" in
+    0) dotfile_clone && dotfile_install ;;
+    1)
+        case "$1" in
+            install) dotfile_install ;;
+            update)  dotfile_update ;;
+            *) echo "error: unknown command '$1'" >&2; exit 1 ;;
+        esac
+        ;;
+    *) echo "error: too many arguments" >&2; exit 1 ;;
+esac
