@@ -15,3 +15,9 @@ Host github_school
     TCPKeepAlive yes
     IdentitiesOnly yes
 
+# gitlab for private
+Host gitlab
+    HostName gitlab.com
+    IdentityFile ~/.ssh/id_ed25519
+    User git
+
