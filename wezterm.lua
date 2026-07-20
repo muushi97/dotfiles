@@ -20,8 +20,8 @@ config.font_rules = {
 -- 合字(リガチャ)を無効化
 config.harfbuzz_features = { 'calt=0', 'clig=0', 'liga=0' }
 -- ビットマップの角をにじませない
-config.freetype_load_target = 'Mono'
-config.freetype_render_target = 'Mono'
+--config.freetype_load_target = 'Mono'
+--config.freetype_render_target = 'Mono'
 -- フォント諸設定
 config.font_size = 12.0  -- dpi 96 のときに 16px
 config.line_height = 1.0
@@ -30,7 +30,7 @@ config.cell_width = 1.0
 
 
 ----------------------------------------------------------------
--- 配色: 昔ながらのVGAテキストモード16色パレット
+-- 配色
 ----------------------------------------------------------------
 
 config.colors = {
@@ -62,6 +62,32 @@ config.colors = {
     '#55FFFF', -- light cyan
     '#FFFFFF', -- white
   },
+
+  tab_bar = {
+    background = '#3d56d5',
+
+    active_tab = {
+      bg_color = '#3d56d5',
+      fg_color = '#434555',
+    },
+    inactive_tab = {
+      bg_color = '#3d56d5',
+      fg_color = '#5cb4fe',
+    },
+    inactive_tab_hover = {
+      bg_color = '#333333',
+      fg_color = '#AAAAAA',
+    },
+
+    new_tab = {
+      bg_color = '#000000',
+      fg_color = '#AAAAAA',
+    },
+    new_tab_hover = {
+      bg_color = '#c4b58c',
+      fg_color = '#FFFFFF',
+    },
+  },
 }
 
 
@@ -75,7 +101,14 @@ config.cursor_blink_ease_out = 'Constant'
 
 
 ----------------------------------------------------------------
--- ウィンドウまわり: 余計な装飾を削ぎ落とす
+-- WSL まわりの設定
+----------------------------------------------------------------
+
+config.default_domain = 'WSL:Ubuntu'
+
+
+----------------------------------------------------------------
+-- ウィンドウまわり
 ----------------------------------------------------------------
 
 config.window_padding = {
@@ -86,24 +119,6 @@ config.window_padding = {
 }
 config.window_background_opacity = 1.0
 config.enable_scroll_bar = true
- 
--- タブバーもレトロな見た目に
-config.use_fancy_tab_bar = false
-config.tab_bar_at_bottom = false
-config.hide_tab_bar_if_only_one_tab = true
-
-
-----------------------------------------------------------------
--- WSL まわりの設定
-----------------------------------------------------------------
-
-config.default_domain = 'WSL:Ubuntu'
-config.automatically_reload_config = true
-
-
-----------------------------------------------------------------
--- ...
-----------------------------------------------------------------
 
 -- 初期ウィンドウサイズ (文字数)
 config.initial_cols = 80
@@ -117,6 +132,46 @@ config.pane_focus_follows_mouse = true
 
 -- IME
 config.use_ime = true
+
+-- 設定の自動リロード
+config.automatically_reload_config = true
+
+
+----------------------------------------------------------------
+-- タイトルバー、タブ、ステータスバー
+----------------------------------------------------------------
+
+-- ウィンドウのタイトルバーを消す
+config.window_decorations = "RESIZE"
+
+config.show_new_tab_button_in_tab_bar = true
+--config.show_close_tab_button_in_tabs = false
+
+config.window_frame = {
+  font = wezterm.font('Segoe UI', { weight = 'Regular' }),
+  font_size = 11.0,
+  inactive_titlebar_bg = '#5cb4fe',
+  active_titlebar_bg = '#5cb4fe',
+  inactive_titlebar_fg = '#3d56d5',
+  active_titlebar_fg = '#3d56d5',
+}
+--config.window_background_gradient = {
+--  colors = { "#000000" },
+--}
+ 
+-- タブバーもレトロな見た目に
+--config.use_fancy_tab_bar = false
+--config.tab_bar_at_bottom = false
+--config.hide_tab_bar_if_only_one_tab = true
+
+-- ステータスバー、右上に時間を
+wezterm.on('update-right-status', function(window, _pane)
+  local date = wezterm.strftime '%Y-%m-%d %H:%M'
+  window:set_right_status(wezterm.format {
+    { Foreground = { AnsiColor = 'Silver' } },
+    { Text = date .. '  ' },
+  })
+end)
 
 
 ----------------------------------------------------------------
@@ -142,19 +197,6 @@ config.keys = {
   { key = 'n', mods = 'LEADER', action = wezterm.action.ActivateTabRelative(1)  },
   { key = 'p', mods = 'LEADER', action = wezterm.action.ActivateTabRelative(-1) },
 }
-
-
-----------------------------------------------------------------
--- ステータスバー
-----------------------------------------------------------------
-
-wezterm.on('update-right-status', function(window, _pane)
-  local date = wezterm.strftime '%Y-%m-%d %H:%M'
-  window:set_right_status(wezterm.format {
-    { Foreground = { AnsiColor = 'Silver' } },
-    { Text = date .. '  ' },
-  })
-end)
 
 return config
 
