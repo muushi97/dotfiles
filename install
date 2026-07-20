@@ -194,7 +194,7 @@ usage() {
 Usage: $(basename "$0") <subcommand>
 
 Subcommands:
-  clone    リポジトリを $DOTFILES_PATH へ clone する
+  clone    リポジトリを ~/dotfiles へ clone する
   install  dotfiles をインストールする（WSL 環境では Windows 側も対象）
   update   dotfiles を更新する
   check    各コマンドのインストール状況を確認する
