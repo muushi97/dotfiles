@@ -107,27 +107,41 @@ install_git_completion() {
     curl "$base_url/git-prompt.sh"       > ~/.git-prompt.sh
 }
 
-# wezterm が使うフォントを Windows 側の wezterm 設定ディレクトリへダウンロードする
-install_wezterm_fonts() {
+# wezterm フォントを $DOTFILES_PATH/assets/wezterm/fonts/ へダウンロードする
+prepare_wezterm_fonts() {
     local font_url="https://int10h.org/oldschool-pc-fonts/download/oldschool_pc_font_pack_v2.2_linux.zip"
-    local dest_dir
-    dest_dir="$(resolve_win_home)/.config/wezterm/fonts"
+    local asset_dir="$DOTFILES_PATH/assets/wezterm/fonts"
     local zip_wsl_path
     zip_wsl_path=$(mktemp --suffix=.zip)
 
+    curl.exe -fsSL -o "$(wslpath -w "$zip_wsl_path")" "$font_url" \
+        || { echo "Failed to download fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
+    mkdir -p "$asset_dir"
+    unzip -j "$zip_wsl_path" '*Mx437*VGA*8x16*' -d "$asset_dir" \
+        || { echo "Failed to extract fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
+    rm -f "$zip_wsl_path"
+    echo "Prepared wezterm fonts in $asset_dir"
+}
+
+# 事前ダウンロード済みの wezterm フォントを Windows 側へコピーする
+deploy_wezterm_fonts() {
+    local asset_dir="$DOTFILES_PATH/assets/wezterm/fonts"
+    local dest_dir
+    dest_dir="$(resolve_win_home)/.config/wezterm/fonts"
+
     if ! exist_win_command wezterm; then
         echo "wezterm is not installed on Windows, skipping."
-        rm -f "$zip_wsl_path"
         return
     fi
 
-    curl.exe -fsSL -o "$(wslpath -w "$zip_wsl_path")" "$font_url" \
-        || { echo "Failed to download fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
+    if [ ! -d "$asset_dir" ] || [ -z "$(ls -A "$asset_dir" 2>/dev/null)" ]; then
+        echo "wezterm fonts not prepared. Run '$(basename "$0") prepare' first." >&2
+        return 1
+    fi
+
     mkdir -p "$dest_dir"
-    unzip -j "$zip_wsl_path" '*Mx437*VGA*8x16*' -d "$dest_dir" \
-        || { echo "Failed to extract fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
-    rm -f "$zip_wsl_path"
-    echo "Installed wezterm fonts to $dest_dir"
+    cp "$asset_dir"/* "$dest_dir/"
+    echo "Deployed wezterm fonts to $dest_dir"
 }
 
 # WSL 環境かどうかを確認する
@@ -172,6 +186,15 @@ dotfile_win_install() {
     done < "$DOTFILES_PATH/links.windows"
 }
 
+# 必要なファイルを事前生成・ダウンロードする（WSL 専用）
+dotfile_prepare() {
+    if ! is_wsl; then
+        echo "prepare is only supported in WSL." >&2
+        exit 1
+    fi
+    prepare_wezterm_fonts
+}
+
 # シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
 # WSL 環境では Windows 側へのコピーも行う
 dotfile_install() {
@@ -180,7 +203,7 @@ dotfile_install() {
     #install_git_completion
     if is_wsl; then
         dotfile_win_install
-        install_wezterm_fonts
+        deploy_wezterm_fonts
     fi
 }
 
@@ -219,6 +242,7 @@ Usage: $(basename "$0") <subcommand>
 
 Subcommands:
   clone    リポジトリを ~/dotfiles へ clone する
+  prepare  必要なファイルを事前ダウンロード・生成する（WSL 専用）
   install  dotfiles をインストールする（WSL 環境では Windows 側も対象）
   update   dotfiles を更新する
   check    各コマンドのインストール状況を確認する
@@ -231,6 +255,7 @@ case "$#" in
     1)
         case "$1" in
             clone)   dotfile_clone ;;
+            prepare) dotfile_prepare ;;
             install) dotfile_install ;;
             update)  dotfile_update ;;
             check)   dotfile_check ;;
