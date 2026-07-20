@@ -49,13 +49,14 @@ create_link() {
     echo "Linked: $src -> $dest"
 }
 
-# link.yaml を解析して各エントリのシンボリックリンクを作成する
+# links ファイルを読んで各エントリのシンボリックリンクを作成する
 dotfile_link() {
-    cat "$DOTFILES_PATH/link.yaml" | "$DOTFILES_PATH/bin/parseyaml" | \
-        sed -e 's/^\///' -e 's/\[[0-9]\+\]\// /' | \
-        while IFS=' ' read -r cmd dest src; do
-            create_link "$cmd" "$dest" "$src"
-        done
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        create_link "$cmd" "$dest" "$src"
+    done < "$DOTFILES_PATH/links"
 }
 
 # vim プラグインを ~/.vim/pack/ 以下に clone する
