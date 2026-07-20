@@ -12,8 +12,8 @@ scriptencoding utf-8
 set nocompatible
 " 背景の感じを決める (たぶんカラースキーマによっては意味ない)
 set background=dark
-" カラースキーマを変更
-colorscheme elflord
+"" カラースキーマを変更
+"colorscheme elflord
 " モードラインをON
 set modeline
 " ファイルタイプごとのいろいろをON
@@ -101,12 +101,12 @@ set cursorline
 set visualbell
 " 256色使えるようにする
 set t_Co=256
-" 画面を黒地に白にする (次行の先頭の " を削除すれば有効になる)
-colorscheme hybrid
-" 24色にする
-if v:version >= 800
-    set termguicolors
-endif
+"" 画面を黒地に白にする (次行の先頭の " を削除すれば有効になる)
+"colorscheme hybrid
+"" 24色にする
+"if v:version >= 800
+"    set termguicolors
+"endif
 " 行番号の色
 highlight LineNr ctermfg=white
 " カーソルラインの色
@@ -267,17 +267,17 @@ endfunction
 " }}}
 
 
-"---------------------------------------------------------------------------
-" :AutoUpdateColorscheme でカラースキームを3秒毎に更新
-" https://rhysd.hatenablog.com/entry/2016/12/17/191158
-function! s:auto_update_colorscheme(...) abort
-    if &ft !=# 'vim'
-        echoerr 'Execute this command in colorscheme file buffer'
-    endif
-    setlocal autoread noswapfile
-    let interval = a:0 > 0 ? a:1 : 3000
-    let timer = timer_start(interval, {-> execute('checktime')}, {'repeat' : -1})
-    autocmd! BufReadPost <buffer> source %
-endfunction
-command! -nargs=? AutoUpdateColorscheme call <SID>auto_update_colorscheme(<f-args>)
+""---------------------------------------------------------------------------
+"" :AutoUpdateColorscheme でカラースキームを3秒毎に更新
+"" https://rhysd.hatenablog.com/entry/2016/12/17/191158
+"function! s:auto_update_colorscheme(...) abort
+"    if &ft !=# 'vim'
+"        echoerr 'Execute this command in colorscheme file buffer'
+"    endif
+"    setlocal autoread noswapfile
+"    let interval = a:0 > 0 ? a:1 : 3000
+"    let timer = timer_start(interval, {-> execute('checktime')}, {'repeat' : -1})
+"    autocmd! BufReadPost <buffer> source %
+"endfunction
+"command! -nargs=? AutoUpdateColorscheme call <SID>auto_update_colorscheme(<f-args>)
 
