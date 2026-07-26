@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__pencil",
+      "Bash(python3 -c \"import json,sys; s=json.load\\(sys.stdin\\); print\\(json.dumps\\(s['properties']['speakers'], indent=2\\)\\)\")"
+    ]
+  },
+  "theme": "auto",
+  "tui": "fullscreen"
+}
