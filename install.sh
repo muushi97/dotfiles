@@ -107,6 +107,43 @@ install_git_completion() {
     curl "$base_url/git-prompt.sh"       > ~/.git-prompt.sh
 }
 
+# Claude Code スキルを $DOTFILES_PATH/assets/claude/skills/ へダウンロードする
+prepare_claude_skills() {
+    local skill_dir="$DOTFILES_PATH/assets/claude/skills"
+    local gist_urls="
+https://gist.githubusercontent.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d/raw/SKILL.md
+https://gist.githubusercontent.com/k16shikano/eb2929f13ed19c97188393d297be8432/raw/SKILL.md
+"
+    for url in $gist_urls; do
+        local tmp
+        tmp=$(mktemp)
+        if ! curl -fsSL -o "$tmp" "$url"; then
+            echo "Failed to download: $url" >&2
+            rm -f "$tmp"
+            continue
+        fi
+        local name
+        name=$(awk '/^---/{c++; next} c==1 && /^name:/{print $2; exit}' "$tmp")
+        if [ -z "$name" ]; then
+            echo "Could not extract skill name from: $url" >&2
+            rm -f "$tmp"
+            continue
+        fi
+        mkdir -p "$skill_dir/$name"
+        mv "$tmp" "$skill_dir/$name/SKILL.md"
+        echo "Prepared Claude skill: $skill_dir/$name/SKILL.md"
+    done
+}
+
+# 事前ダウンロード済みの Claude Code スキルを ~/.claude/skills/ へリンクする
+deploy_claude_skills() {
+    local skill_dir="$DOTFILES_PATH/assets/claude/skills"
+    mkdir -p ~/.claude/skills
+    for d in "$skill_dir"/*/; do
+        create_link "claude" ".claude/skills/$(basename "$d")" "assets/claude/skills/$(basename "$d")"
+    done
+}
+
 # wezterm フォントを $DOTFILES_PATH/assets/wezterm/fonts/ へダウンロードする
 prepare_wezterm_fonts() {
     local font_url="https://int10h.org/oldschool-pc-fonts/download/oldschool_pc_font_pack_v2.2_linux.zip"
@@ -186,13 +223,12 @@ deploy_win_dotfiles() {
     done < "$DOTFILES_PATH/links.windows"
 }
 
-# 必要なファイルを事前生成・ダウンロードする（WSL 専用）
+# 必要なファイルを事前生成・ダウンロードする
 cmd_prepare() {
-    if ! is_wsl; then
-        echo "prepare is only supported in WSL." >&2
-        exit 1
+    prepare_claude_skills
+    if is_wsl; then
+        prepare_wezterm_fonts
     fi
-    prepare_wezterm_fonts
 }
 
 # シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
@@ -201,6 +237,7 @@ cmd_apply() {
     link_dotfiles
     #install_vim_plugins
     #install_git_completion
+    deploy_claude_skills
     if is_wsl; then
         deploy_win_dotfiles
         deploy_wezterm_fonts
@@ -242,7 +279,7 @@ Usage: $(basename "$0") <subcommand>
 
 Subcommands:
   clone    リポジトリを ~/dotfiles へ clone する
-  prepare  必要なファイルを事前ダウンロード・生成する（WSL 専用）
+  prepare  必要なファイルを事前ダウンロード・生成する（WSL では wezterm フォントも取得）
   apply    dotfiles を環境へ適用する（WSL 環境では Windows 側も対象）
   update   dotfiles を更新する
   check    各コマンドのインストール状況を確認する
