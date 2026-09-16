@@ -14,11 +14,7 @@ urxvt       .Xdefaults                        Xdefaults
 startx      .xinitrc                          xinitrc
 xmobar      .xmobarrc                         xmobarrc.hs
 picom       .config/picom.conf                picom.conf
-ls          .Xmodmap                          Xmodmap
-ls          .xscreensaver                     xscreensaver
 ls          bin                               bin
-ls          .xkb/keymap/mykbd                 xkb/keymap/mykbd
-ls          .xkb/symbols/myswap               xkb/symbols/myswap
 fcitx       .xprofile                         xprofile
 polybar     .config/polybar/config            polybar/config
 polybar     .config/polybar/polybar-restart   polybar/polybar-restart
