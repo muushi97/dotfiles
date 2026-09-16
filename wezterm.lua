@@ -10,11 +10,23 @@ config.font_dirs = { wezterm.config_dir .. '/fonts' }
 
 -- Px437 IBM VGA8: 実機VGA BIOSの8x16ビットマップをそのまま復刻したフォント
 -- (int10h.org "The Ultimate Oldschool PC Font Pack" より, CC BY-SA 4.0)
-config.font = wezterm.font('Mx437 IBM VGA 8x16', { weight = 'Regular' })
+-- ※ 同パックの Mx437 (mixed outline+bitmap) 版は、CP437 の範囲外の
+--   ひらがな等にも中身が空のグリフを cmap 上で誤って持っており、
+--   WezTerm がそれを「対応グリフあり」と誤認して空白を描画し、
+--   日本語の一部文字が消える原因になっていた。
+--   Px437 (pixel outline) 版は CP437 の範囲しかグリフを持たないため
+--   これを使う(見た目のビットマップ絵柄は同一)。
+-- 日本語は MS ゴシック(Windows 標準・小サイズでのカクカクした見た目が
+-- VGA ビットマップの雰囲気に近い)にフォールバックする。
+local main_font = wezterm.font_with_fallback {
+  { family = 'Px437 IBM VGA 8x16', weight = 'Regular' },
+  { family = 'MS Gothic' },
+}
+config.font = main_font
 config.font_rules = {
   {
     intensity = 'Bold',
-    font = wezterm.font('Mx437 IBM VGA 8x16', { weight = 'Regular' }),
+    font = main_font,
   },
 }
 -- 合字(リガチャ)を無効化
@@ -105,7 +117,31 @@ config.underline_thickness = "2px"
 -- WSL まわりの設定
 ----------------------------------------------------------------
 
-config.default_domain = 'WSL:Ubuntu'
+-- `wsl.exe -l -v` の既定ディストロ（先頭が `*` の行）を読み取る
+-- 出力が UTF-16LE で来るため null バイトを除去してからパースする
+local function default_wsl_domain()
+  local ok, stdout = wezterm.run_child_process { 'wsl.exe', '-l', '-v' }
+  if not ok or not stdout then
+    return nil
+  end
+  stdout = stdout:gsub('\0', '')
+  for line in stdout:gmatch '[^\r\n]+' do
+    local name = line:match '^%*%s*(%S+)'
+    if name then
+      return 'WSL:' .. name
+    end
+  end
+  return nil
+end
+
+local wsl_domain = default_wsl_domain()
+if wsl_domain then
+  config.default_domain = wsl_domain
+else
+  -- 既定 WSL ディストロの検出に失敗した場合は PowerShell にフォールバックする
+  config.default_domain = 'local'
+  config.default_prog = { 'powershell.exe' }
+end
 
 
 ----------------------------------------------------------------

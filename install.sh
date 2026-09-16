@@ -154,7 +154,7 @@ prepare_wezterm_fonts() {
     curl.exe -fsSL -o "$(wslpath -w "$zip_wsl_path")" "$font_url" \
         || { echo "Failed to download fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
     mkdir -p "$asset_dir"
-    unzip -j "$zip_wsl_path" '*Mx437*VGA*8x16*' -d "$asset_dir" \
+    unzip -j "$zip_wsl_path" '*Px437*VGA*8x16*' -d "$asset_dir" \
         || { echo "Failed to extract fonts." >&2; rm -f "$zip_wsl_path"; return 1; }
     rm -f "$zip_wsl_path"
     echo "Prepared wezterm fonts in $asset_dir"
