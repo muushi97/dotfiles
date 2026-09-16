@@ -26,3 +26,4 @@ rofi        .config/rofi/config               rofi/config
 rofi        .config/rofi/rofi-system.sh       rofi/rofi-system.sh
 ssh         .ssh/config                       ssh/config
 claude      .claude/settings.json             claude/settings.json
+claude      .claude/CLAUDE.md                 claude/CLAUDE.md
