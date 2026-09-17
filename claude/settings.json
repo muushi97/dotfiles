@@ -5,6 +5,8 @@
       "Bash(python3 -c \"import json,sys; s=json.load\\(sys.stdin\\); print\\(json.dumps\\(s['properties']['speakers'], indent=2\\)\\)\")"
     ]
   },
+  "tui": "fullscreen",
   "theme": "auto",
-  "tui": "fullscreen"
+  "agentPushNotifEnabled": true,
+  "inputNeededNotifEnabled": true
 }
