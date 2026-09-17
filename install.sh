@@ -196,31 +196,151 @@ exist_win_command() {
     cmd.exe /c "where $1" > /dev/null 2>&1
 }
 
-# links.windows の1エントリに対応するファイルを Windows 側へコピーする
-# $1: 依存コマンド名, $2: コピー先パス（Windows ホーム相対）, $3: コピー元パス（DOTFILES_PATH 相対）
-copy_to_win() {
+# links.windows の dest パスから .base/.conflict ファイルのキーを作る
+win_deploy_key() {
+    printf '%s' "$1" | tr '/' '__'
+}
+
+# links.windows から指定キー（dest パス由来）に対応するエントリを探し、
+# "cmd dest src" を出力する
+find_win_link_entry() {
+    local key="$1"
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        if [ "$(win_deploy_key "$dest")" = "$key" ]; then
+            printf '%s %s %s\n' "$cmd" "$dest" "$src"
+            return 0
+        fi
+    done < "$DOTFILES_PATH/links.windows"
+    return 1
+}
+
+# links.windows の1エントリについて、Windows側の配置先とリポジトリ側の src を
+# 前回同期時点（win-deploy-base/*.base）を基準に3-wayマージし、両方に反映する
+# $1: 依存コマンド名, $2: 配置先パス（Windows ホーム相対）, $3: リポジトリ側パス（DOTFILES_PATH 相対）
+sync_win_dotfile() {
     local cmd="$1"
-    local dest="$(resolve_win_home)/$2"
-    local src="$DOTFILES_PATH/$3"
+    local dest_rel="$2"
+    local src_rel="$3"
+    local dest="$(resolve_win_home)/$dest_rel"
+    local src="$DOTFILES_PATH/$src_rel"
+    local base_dir="$DOTFILES_PATH/win-deploy-base"
+    local key
+    key="$(win_deploy_key "$dest_rel")"
+    local base_file="$base_dir/$key.base"
+    local conflict_file="$base_dir/$key.conflict"
 
     if ! exist_win_command "$cmd"; then
         echo "$cmd is not installed on Windows, skipping."
         return
     fi
 
-    mkdir -p "$(dirname "$dest")"
-    cp "$src" "$dest"
-    echo "Copied: $src -> $dest"
+    if [ -e "$conflict_file" ]; then
+        echo "$dest_rel: conflict pending, resolve it first: $(basename "$0") resolve-win $key"
+        return
+    fi
+
+    mkdir -p "$base_dir" "$(dirname "$dest")"
+
+    if [ ! -e "$dest" ]; then
+        cp "$src" "$dest"
+        cp "$src" "$base_file"
+        echo "Copied: $src -> $dest"
+        return
+    fi
+
+    if [ ! -e "$base_file" ]; then
+        cp "$dest" "$base_file"
+        echo "$dest_rel: baseline established from existing file, no merge performed this run."
+        return
+    fi
+
+    local dest_changed=1
+    local src_changed=1
+    cmp -s "$dest" "$base_file" && dest_changed=0
+    cmp -s "$src" "$base_file" && src_changed=0
+
+    if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 0 ]; then
+        return
+    fi
+
+    if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 1 ]; then
+        cp "$src" "$dest"
+        cp "$src" "$base_file"
+        echo "Updated: $src -> $dest"
+        return
+    fi
+
+    if [ "$dest_changed" -eq 1 ] && [ "$src_changed" -eq 0 ]; then
+        cp "$dest" "$src"
+        cp "$dest" "$base_file"
+        echo "Synced back: $dest -> $src"
+        return
+    fi
+
+    # 両方が変更されている場合は base を祖先として3-wayマージする
+    local merged
+    merged="$(mktemp)"
+    if git merge-file -p "$dest" "$base_file" "$src" > "$merged" 2>/dev/null; then
+        cp "$merged" "$dest"
+        cp "$merged" "$src"
+        cp "$merged" "$base_file"
+        rm -f "$merged"
+        echo "Merged: $dest_rel"
+    else
+        cp "$merged" "$conflict_file"
+        rm -f "$merged"
+        echo "$dest_rel: merge conflict, resolve $conflict_file then run: $(basename "$0") resolve-win $key"
+    fi
 }
 
-# links.windows を読んで Windows 側へファイルをコピーする
+# links.windows を読んで Windows 側とリポジトリ側を同期する
 deploy_win_dotfiles() {
     while IFS=' ' read -r cmd dest src; do
         case "$cmd" in
             ''|\#*) continue ;;
         esac
-        copy_to_win "$cmd" "$dest" "$src"
+        sync_win_dotfile "$cmd" "$dest" "$src"
     done < "$DOTFILES_PATH/links.windows"
+}
+
+# resolve-win サブコマンド: コンフリクトを解消したファイルを配置先・リポジトリ側の両方へ反映する
+# $1: win_deploy_key で得られるキー
+cmd_resolve_win() {
+    local key="$1"
+    local base_dir="$DOTFILES_PATH/win-deploy-base"
+    local conflict_file="$base_dir/$key.conflict"
+    local base_file="$base_dir/$key.base"
+
+    if [ ! -e "$conflict_file" ]; then
+        echo "$key: no pending conflict ($conflict_file not found)" >&2
+        exit 1
+    fi
+
+    if grep -q '^<<<<<<<' "$conflict_file"; then
+        echo "$key: conflict markers remain in $conflict_file, resolve them first" >&2
+        exit 1
+    fi
+
+    local entry
+    if ! entry="$(find_win_link_entry "$key")"; then
+        echo "$key: no matching entry in links.windows" >&2
+        exit 1
+    fi
+    local cmd dest_rel src_rel
+    read -r cmd dest_rel src_rel <<EOF
+$entry
+EOF
+    local dest="$(resolve_win_home)/$dest_rel"
+    local src="$DOTFILES_PATH/$src_rel"
+
+    cp "$conflict_file" "$dest"
+    cp "$conflict_file" "$src"
+    cp "$conflict_file" "$base_file"
+    rm -f "$conflict_file"
+    echo "Resolved: $key"
 }
 
 # 必要なファイルを事前生成・ダウンロードする
@@ -278,12 +398,13 @@ usage() {
 Usage: $(basename "$0") <subcommand>
 
 Subcommands:
-  clone    リポジトリを ~/dotfiles へ clone する
-  prepare  必要なファイルを事前ダウンロード・生成する（WSL では wezterm フォントも取得）
-  apply    dotfiles を環境へ適用する（WSL 環境では Windows 側も対象）
-  update   dotfiles を更新する
-  check    各コマンドのインストール状況を確認する
-  help     この使い方を表示する
+  clone               リポジトリを ~/dotfiles へ clone する
+  prepare             必要なファイルを事前ダウンロード・生成する（WSL では wezterm フォントも取得）
+  apply               dotfiles を環境へ適用する（WSL 環境では Windows 側も対象）
+  update              dotfiles を更新する
+  check               各コマンドのインストール状況を確認する
+  resolve-win <key>   Windows側配置ファイルのマージコンフリクトを解消する
+  help                この使い方を表示する
 EOF
 }
 
@@ -298,6 +419,12 @@ case "$#" in
             check)   cmd_check ;;
             help)    usage ;;
             *)       usage >&2; exit 1 ;;
+        esac
+        ;;
+    2)
+        case "$1" in
+            resolve-win) cmd_resolve_win "$2" ;;
+            *)           usage >&2; exit 1 ;;
         esac
         ;;
     *) usage >&2; exit 1 ;;
