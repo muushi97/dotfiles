@@ -495,6 +495,128 @@ cmd_status() {
     trap - EXIT
 }
 
+# links.linux の Conflict エントリ（既存ファイルが symlink でない）について
+# 「既存ファイル」と「リポジトリ側ファイル」の diff を出力先ファイルへ書き出す
+# $1: 出力先ファイル
+diff_conflicts_linux() {
+    local out="$1"
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        local dest_path="$HOME/$dest"
+        local src_path="$DOTFILES_PATH/$src"
+
+        if ! exist_command "$cmd"; then
+            continue
+        fi
+        if [ -L "$dest_path" ] || [ ! -e "$dest_path" ]; then
+            continue
+        fi
+
+        if [ -d "$dest_path" ]; then
+            {
+                echo "=== conflict: $dest (directory, skipping content diff) ==="
+                echo
+            } >> "$out"
+            continue
+        fi
+
+        {
+            echo "=== conflict: $dest ==="
+            diff -u --label "existing: $dest" --label "repository: $src" "$dest_path" "$src_path"
+            echo
+        } >> "$out"
+    done < "$DOTFILES_PATH/links.linux"
+}
+
+# links.windows の Needs sync / Conflict pending エントリについて
+# base を基準にした diff を出力先ファイルへ書き出す
+# $1: 出力先ファイル
+diff_pending_windows() {
+    local out="$1"
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        local dest_path="$(resolve_win_home)/$dest"
+        local src_path="$DOTFILES_PATH/$src"
+        local key base_file conflict_file
+        key="$(win_deploy_key "$dest")"
+        base_file="$DOTFILES_PATH/win-deploy-base/$key.base"
+        conflict_file="$DOTFILES_PATH/win-deploy-base/$key.conflict"
+
+        if ! exist_win_command "$cmd"; then
+            continue
+        fi
+
+        if [ -e "$conflict_file" ]; then
+            {
+                echo "=== conflict pending: $dest (resolve-win $key) ==="
+                echo "--- base vs deployed ---"
+                diff -u --label "base" --label "deployed: $dest" "$base_file" "$dest_path"
+                echo "--- base vs repository ---"
+                diff -u --label "base" --label "repository: $src" "$base_file" "$src_path"
+                echo
+            } >> "$out"
+            continue
+        fi
+
+        if [ ! -e "$dest_path" ] || [ ! -e "$base_file" ]; then
+            continue
+        fi
+
+        local dest_changed=1
+        local src_changed=1
+        cmp -s "$dest_path" "$base_file" && dest_changed=0
+        cmp -s "$src_path" "$base_file" && src_changed=0
+
+        if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 0 ]; then
+            continue
+        fi
+
+        {
+            echo "=== needs sync: $dest ==="
+            if [ "$dest_changed" -eq 1 ]; then
+                echo "--- base vs deployed ---"
+                diff -u --label "base" --label "deployed: $dest" "$base_file" "$dest_path"
+            fi
+            if [ "$src_changed" -eq 1 ]; then
+                echo "--- base vs repository ---"
+                diff -u --label "base" --label "repository: $src" "$base_file" "$src_path"
+            fi
+            echo
+        } >> "$out"
+    done < "$DOTFILES_PATH/links.windows"
+}
+
+# dotfiles の未同期・衝突エントリについて具体的な内容差分を表示する
+cmd_diff() {
+    DIFF_TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$DIFF_TMP_DIR"' EXIT
+
+    local linux_out="$DIFF_TMP_DIR/linux"
+    : > "$linux_out"
+    diff_conflicts_linux "$linux_out"
+    if [ -s "$linux_out" ]; then
+        echo "[links.linux]"
+        cat "$linux_out"
+    fi
+
+    if is_wsl; then
+        local win_out="$DIFF_TMP_DIR/windows"
+        : > "$win_out"
+        diff_pending_windows "$win_out"
+        if [ -s "$win_out" ]; then
+            echo "[links.windows]"
+            cat "$win_out"
+        fi
+    fi
+
+    rm -rf "$DIFF_TMP_DIR"
+    trap - EXIT
+}
+
 # links ファイル内の各コマンドの存在をチェックして結果を表示する
 cmd_check() {
     awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.linux" | sort -u | \
@@ -529,6 +651,7 @@ Subcommands:
   update              dotfiles を更新する
   check               各コマンドのインストール状況を確認する
   status              dotfiles のリンク・同期状態を確認する
+  diff                未同期・衝突エントリの内容差分を表示する
   resolve-win <key>   Windows側配置ファイルのマージコンフリクトを解消する
   help                この使い方を表示する
 EOF
@@ -544,6 +667,7 @@ case "$#" in
             update)  cmd_update ;;
             check)   cmd_check ;;
             status)  cmd_status ;;
+            diff)    cmd_diff ;;
             help)    usage ;;
             *)       usage >&2; exit 1 ;;
         esac
