@@ -370,6 +370,131 @@ cmd_update() {
     #update_vim_plugins
 }
 
+# status サブコマンドの分類結果を一時ファイルに1行追記する
+# $1: カテゴリキー, $2: 出力行
+_status_add() {
+    printf '%s\n' "$2" >> "$STATUS_TMP_DIR/$1"
+}
+
+# カテゴリファイルに内容があれば見出し付きで出力する
+# $1: 見出し, $2: カテゴリキー
+_status_print() {
+    local file="$STATUS_TMP_DIR/$2"
+    if [ -s "$file" ]; then
+        echo "$1"
+        sed 's/^/  /' "$file"
+        echo
+    fi
+}
+
+# links.linux の各エントリについて、シンボリックリンクの状態を分類する
+check_link_status_linux() {
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        local dest_path="$HOME/$dest"
+        local src_path="$DOTFILES_PATH/$src"
+
+        if ! exist_command "$cmd"; then
+            _status_add skipped "$cmd -> $dest"
+            continue
+        fi
+
+        if [ -L "$dest_path" ]; then
+            if [ "$(readlink "$dest_path")" = "$src_path" ]; then
+                _status_add linked "$dest"
+            else
+                _status_add conflict "$dest (points elsewhere: $(readlink "$dest_path"))"
+            fi
+        elif [ -e "$dest_path" ]; then
+            _status_add conflict "$dest (existing file, not a symlink)"
+        else
+            _status_add not_linked "$dest"
+        fi
+    done < "$DOTFILES_PATH/links.linux"
+}
+
+# links.windows の各エントリについて、sync_win_dotfile と同じ基準で
+# 同期状態を副作用なしに分類する
+check_link_status_windows() {
+    while IFS=' ' read -r cmd dest src; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        local dest_path="$(resolve_win_home)/$dest"
+        local src_path="$DOTFILES_PATH/$src"
+        local key base_file conflict_file
+        key="$(win_deploy_key "$dest")"
+        base_file="$DOTFILES_PATH/win-deploy-base/$key.base"
+        conflict_file="$DOTFILES_PATH/win-deploy-base/$key.conflict"
+
+        if ! exist_win_command "$cmd"; then
+            _status_add win_skipped "$cmd -> $dest"
+            continue
+        fi
+
+        if [ -e "$conflict_file" ]; then
+            _status_add win_conflict "$dest (resolve-win $key)"
+            continue
+        fi
+
+        if [ ! -e "$dest_path" ]; then
+            _status_add win_not_deployed "$dest"
+            continue
+        fi
+
+        if [ ! -e "$base_file" ]; then
+            _status_add win_no_baseline "$dest"
+            continue
+        fi
+
+        local dest_changed=1
+        local src_changed=1
+        cmp -s "$dest_path" "$base_file" && dest_changed=0
+        cmp -s "$src_path" "$base_file" && src_changed=0
+
+        if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 0 ]; then
+            _status_add win_in_sync "$dest"
+        elif [ "$dest_changed" -eq 0 ]; then
+            _status_add win_needs_sync_src "$dest (repository side changed)"
+        elif [ "$src_changed" -eq 0 ]; then
+            _status_add win_needs_sync_dest "$dest (deployed side changed)"
+        else
+            _status_add win_needs_sync_both "$dest (both sides changed, will attempt auto-merge)"
+        fi
+    done < "$DOTFILES_PATH/links.windows"
+}
+
+# dotfiles のリンク・同期状態を git status のようにグループ分けして表示する
+cmd_status() {
+    STATUS_TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$STATUS_TMP_DIR"' EXIT
+
+    check_link_status_linux
+    echo "[links.linux]"
+    _status_print "Linked:" linked
+    _status_print "Not linked:" not_linked
+    _status_print "Conflict (existing file is not our symlink):" conflict
+    _status_print "Skipped (command not installed):" skipped
+
+    if is_wsl; then
+        check_link_status_windows
+        echo "[links.windows]"
+        _status_print "In sync:" win_in_sync
+        _status_print "Needs sync (repository side changed):" win_needs_sync_src
+        _status_print "Needs sync (deployed side changed):" win_needs_sync_dest
+        _status_print "Needs sync (both sides changed):" win_needs_sync_both
+        _status_print "Conflict pending:" win_conflict
+        _status_print "Not deployed:" win_not_deployed
+        _status_print "No baseline yet (run apply once):" win_no_baseline
+        _status_print "Skipped (command not installed on Windows):" win_skipped
+    fi
+
+    rm -rf "$STATUS_TMP_DIR"
+    trap - EXIT
+}
+
 # links ファイル内の各コマンドの存在をチェックして結果を表示する
 cmd_check() {
     awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.linux" | sort -u | \
@@ -403,6 +528,7 @@ Subcommands:
   apply               dotfiles を環境へ適用する（WSL 環境では Windows 側も対象）
   update              dotfiles を更新する
   check               各コマンドのインストール状況を確認する
+  status              dotfiles のリンク・同期状態を確認する
   resolve-win <key>   Windows側配置ファイルのマージコンフリクトを解消する
   help                この使い方を表示する
 EOF
@@ -417,6 +543,7 @@ case "$#" in
             apply)   cmd_apply ;;
             update)  cmd_update ;;
             check)   cmd_check ;;
+            status)  cmd_status ;;
             help)    usage ;;
             *)       usage >&2; exit 1 ;;
         esac
