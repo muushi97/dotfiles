@@ -137,6 +137,12 @@ end
 local wsl_domain = default_wsl_domain()
 if wsl_domain then
   config.default_domain = wsl_domain
+  -- 各 WSL ドメインの既定ディレクトリをホームにする
+  local wsl_domains = wezterm.default_wsl_domains()
+  for _, dom in ipairs(wsl_domains) do
+    dom.default_cwd = '~'
+  end
+  config.wsl_domains = wsl_domains
 else
   -- 既定 WSL ディストロの検出に失敗した場合は PowerShell にフォールバックする
   config.default_domain = 'local'
@@ -232,7 +238,7 @@ config.keys = {
   -- ペインのズーム
   { key = 'z', mods = 'LEADER', action = wezterm.action.TogglePaneZoomState },
   -- タブ操作
-  { key = 'c', mods = 'LEADER', action = wezterm.action.SpawnTab 'CurrentPaneDomain' },
+  { key = 'c', mods = 'LEADER', action = wezterm.action.SpawnCommandInNewTab { domain = 'CurrentPaneDomain', cwd = '~' } },
   { key = 'n', mods = 'LEADER', action = wezterm.action.ActivateTabRelative(1)  },
   { key = 'p', mods = 'LEADER', action = wezterm.action.ActivateTabRelative(-1) },
 }
