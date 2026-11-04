@@ -35,9 +35,18 @@ GIT_PS1_SHOWDIRTYSTATE=true      # *:unstaged, +:staged
 GIT_PS1_SHOWUNTRACKEDFILES=true  # %:untracked
 GIT_PS1_SHOWSTASHSTATE=true      # $:stashed
 GIT_PS1_SHOWUPSTREAM=auto        # >:ahead, <:behind
+GIT_PS1_SHOWCOLORHINTS=true      # 状態を色分けする (PROMPT_COMMAND から __git_ps1 を呼ぶ必要がある)
 
+# Gentoo の配色にする: user@host は緑 (root は赤)、ディレクトリから $ までは青
+if ((EUID == 0)); then
+	PS1_USERHOST='\[\e[01;31m\]\u@\h\[\e[00m\]'
+else
+	PS1_USERHOST='\[\e[01;32m\]\u@\h\[\e[00m\]'
+fi
+# __git_ps1 が、この 2 つの間に git の状態を挟んで PS1 を組み立てる
 # git の状態と、vim から入ったサブシェルかどうかを後ろに付ける
-PS1='[\u@\h \W]$(__git_ps1 "[%s]")${VIMRUNTIME:+[vim]}\$ '
+PS1_PRE='['"$PS1_USERHOST"'\[\e[01;34m\] \W]\[\e[00m\]'
+PS1_POST='${VIMRUNTIME:+[\[\e[36m\]vim\[\e[00m\]]}\[\e[01;34m\]\$\[\e[00m\] '
 
 # 出力のあとに改行をいれる
 function add_line {
@@ -47,7 +56,7 @@ function add_line {
         printf '\n'
     fi
 }
-PROMPT_COMMAND='add_line'
+PROMPT_COMMAND=(add_line '__git_ps1 "$PS1_PRE" "$PS1_POST" "[%s]"')
 
 # alias
 export PATH=$PATH:~/bin/
