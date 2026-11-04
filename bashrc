@@ -45,7 +45,7 @@ else
 fi
 # __git_ps1 が、この 2 つの間に git の状態を挟んで PS1 を組み立てる
 # git の状態と、vim から入ったサブシェルかどうかを後ろに付ける
-PS1_PRE='['"$PS1_USERHOST"'\[\e[01;34m\] \W]\[\e[00m\]'
+PS1_PRE='['"$PS1_USERHOST"'\[\e[01;34m\] \W\[\e[00m\]]'
 PS1_POST='${VIMRUNTIME:+[\[\e[36m\]vim\[\e[00m\]]}\[\e[01;34m\]\$\[\e[00m\] '
 
 # 出力のあとに改行をいれる
