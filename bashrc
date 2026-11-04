@@ -30,21 +30,14 @@ fi
 
 # PS1 に代入してプロンプト表示を変更
 # \t=時間 \u=ユーザー名 \W=カレントディレクトリ
-PS1='['
-# vim からサブシェルに入ったかわかるようにする
-[[ -n "$VIMRUNTIME" ]] && \
-	PS1=$PS1'v '
-# ranger からサブシェルに入ったかわかるようにする
-[[ -n "$RANGER_LEVEL" ]] && \
-	PS1=$PS1'r '
 # git 用
 GIT_PS1_SHOWDIRTYSTATE=true      # *:unstaged, +:staged
 GIT_PS1_SHOWUNTRACKEDFILES=true  # %:untracked
 GIT_PS1_SHOWSTASHSTATE=true      # $:stashed
 GIT_PS1_SHOWUPSTREAM=auto        # >:ahead, <:behind
-GIT_PS1_STATESEPARATOR=':'
 
-PS1=$PS1'\W $(__git_ps1)] \$ '
+# git の状態と、vim から入ったサブシェルかどうかを後ろに付ける
+PS1='[\u@\h \W]$(__git_ps1 "[%s]")${VIMRUNTIME:+[vim]}\$ '
 
 # 出力のあとに改行をいれる
 function add_line {
