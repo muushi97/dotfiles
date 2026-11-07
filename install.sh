@@ -159,6 +159,10 @@ deploy_claude_skills() {
 
         mkdir -p "$dest"
         cp -r "$src/." "$dest/"
+        # 既存ファイルへの上書きでは実行ビットが変わらないので、assets 側に合わせる
+        (cd "$src" && find . -type f) | while IFS= read -r rel; do
+            set_exec_bit "$dest/$rel" "$(exec_bit "$src/$rel")"
+        done
         echo "Copied: $src -> $dest"
     done
 }
@@ -233,15 +237,51 @@ copy_exist_command() {
     esac
 }
 
+# ファイルの所有者の実行ビットを出力する（1: あり, 0: なし）
+exec_bit() {
+    case "$(stat -c %A "$1")" in
+        ???[xs]*) echo 1 ;;
+        *)        echo 0 ;;
+    esac
+}
+
+# ファイルの実行ビットを設定する（chmod +x / -x で、umask で除かれない全員分の x を付け外しする）
+# $1: ファイル, $2: 1 なら付け、0 なら外す
+set_exec_bit() {
+    if [ "$2" -eq 1 ]; then
+        chmod +x "$1"
+    else
+        chmod -x "$1"
+    fi
+}
+
+# 2つのファイルが同じか確認する
+# $1, $2: ファイル, $3: 1 なら中身に加えて実行ビットも比べる
+same_file() {
+    cmp -s "$1" "$2" || return 1
+    [ "$3" -eq 1 ] || return 0
+    [ "$(exec_bit "$1")" = "$(exec_bit "$2")" ]
+}
+
+# ファイルをコピーする
+# $1: コピー元, $2: コピー先, $3: 1 なら実行ビットもコピー元に合わせる
+copy_file() {
+    cp "$1" "$2"
+    if [ "$3" -eq 1 ]; then
+        set_exec_bit "$2" "$(exec_bit "$1")"
+    fi
+}
+
 # 配置先・リポジトリ側を前回同期時点の base と比べて同期状態を分類し、状態名を出力する
 # $1: 配置先, $2: リポジトリ側, $3: base ファイル, $4: conflict ファイル,
-# $5: 1 なら片側での削除も同期の対象にする
+# $5: 1 なら片側での削除も同期の対象にする, $6: 1 なら実行ビットも同期の対象にする
 classify_3way() {
     local dest="$1"
     local src="$2"
     local base_file="$3"
     local conflict_file="$4"
     local track_delete="$5"
+    local track_mode="$6"
 
     if [ -e "$conflict_file" ]; then
         echo conflict
@@ -255,7 +295,7 @@ classify_3way() {
             return
         fi
         if [ ! -e "$dest" ]; then
-            if cmp -s "$src" "$base_file"; then
+            if same_file "$src" "$base_file" "$track_mode"; then
                 echo deleted_dest
             else
                 echo deleted_dest_conflict
@@ -263,7 +303,7 @@ classify_3way() {
             return
         fi
         if [ ! -e "$src" ]; then
-            if cmp -s "$dest" "$base_file"; then
+            if same_file "$dest" "$base_file" "$track_mode"; then
                 echo deleted_src
             else
                 echo deleted_src_conflict
@@ -288,7 +328,7 @@ classify_3way() {
 
     # 初めての同期で両側にファイルがある場合、中身（と実行ビット）が違えば衝突として扱う
     if [ ! -e "$base_file" ]; then
-        if cmp -s "$dest" "$src"; then
+        if same_file "$dest" "$src" "$track_mode"; then
             echo no_baseline_same
         else
             echo no_baseline_differ
@@ -298,8 +338,8 @@ classify_3way() {
 
     local dest_changed=1
     local src_changed=1
-    cmp -s "$dest" "$base_file" && dest_changed=0
-    cmp -s "$src" "$base_file" && src_changed=0
+    same_file "$dest" "$base_file" "$track_mode" && dest_changed=0
+    same_file "$src" "$base_file" "$track_mode" && src_changed=0
 
     if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 0 ]; then
         echo in_sync
@@ -315,7 +355,8 @@ classify_3way() {
 # 1ファイルについて、配置先とリポジトリ側を前回同期時点の base を基準に3-wayマージし、
 # 両方に反映する
 # $1: 配置先, $2: リポジトリ側, $3: base ファイル, $4: conflict ファイル,
-# $5: resolve サブコマンドに渡すキー（配置先の相対パス）, $6: 1 なら片側での削除も同期する
+# $5: resolve サブコマンドに渡すキー（配置先の相対パス）, $6: 1 なら片側での削除も同期する,
+# $7: 1 なら実行ビットも同期する（base ファイル自体の実行ビットに前回同期時点の値を記録する）
 sync_file_3way() {
     local dest="$1"
     local src="$2"
@@ -323,9 +364,10 @@ sync_file_3way() {
     local conflict_file="$4"
     local key="$5"
     local track_delete="$6"
+    local track_mode="$7"
     local label="$key"
     local state
-    state="$(classify_3way "$dest" "$src" "$base_file" "$conflict_file" "$track_delete")"
+    state="$(classify_3way "$dest" "$src" "$base_file" "$conflict_file" "$track_delete" "$track_mode")"
 
     mkdir -p "$(dirname "$base_file")"
 
@@ -349,62 +391,92 @@ sync_file_3way() {
             echo "Deleted: $dest (removed in repository)"
             ;;
         deleted_dest_conflict)
-            cp "$src" "$conflict_file"
+            copy_file "$src" "$conflict_file" "$track_mode"
             echo "$label: removed on deployed side but changed in repository, edit $conflict_file then run: $(basename "$0") resolve [--delete] $key"
             ;;
         deleted_src_conflict)
-            cp "$dest" "$conflict_file"
+            copy_file "$dest" "$conflict_file" "$track_mode"
             echo "$label: removed in repository but changed on deployed side, edit $conflict_file then run: $(basename "$0") resolve [--delete] $key"
             ;;
         not_deployed)
             mkdir -p "$(dirname "$dest")"
-            cp "$src" "$dest"
-            cp "$src" "$base_file"
+            copy_file "$src" "$dest" "$track_mode"
+            copy_file "$src" "$base_file" "$track_mode"
             echo "Copied: $src -> $dest"
             ;;
         new_dest)
             mkdir -p "$(dirname "$src")"
-            cp "$dest" "$src"
-            cp "$dest" "$base_file"
+            copy_file "$dest" "$src" "$track_mode"
+            copy_file "$dest" "$base_file" "$track_mode"
             echo "Copied back: $dest -> $src"
             ;;
         no_baseline_same)
-            cp "$dest" "$base_file"
+            copy_file "$dest" "$base_file" "$track_mode"
             echo "$label: baseline established (both sides identical)."
             ;;
         no_baseline_differ)
             # 共通の祖先がないので、空ファイルを祖先として差分のある箇所に印を付ける
+            # 実行ビットはどちらが変わったか判断できないので、配置先の値を仮に付けておく
             local empty
             empty="$(mktemp)"
             git merge-file -p "$dest" "$empty" "$src" > "$conflict_file" 2>/dev/null
             rm -f "$empty"
+            if [ "$track_mode" -eq 1 ]; then
+                set_exec_bit "$conflict_file" "$(exec_bit "$dest")"
+                if [ "$(exec_bit "$dest")" != "$(exec_bit "$src")" ]; then
+                    echo "$label: executable bit differs, the conflict file has the deployed side's; chmod it if needed before resolve."
+                fi
+            fi
             echo "$label: no baseline and both sides differ, resolve $conflict_file then run: $(basename "$0") resolve $key"
             ;;
         in_sync)
             ;;
         src_changed)
-            cp "$src" "$dest"
-            cp "$src" "$base_file"
+            copy_file "$src" "$dest" "$track_mode"
+            copy_file "$src" "$base_file" "$track_mode"
             echo "Updated: $src -> $dest"
             ;;
         dest_changed)
-            cp "$dest" "$src"
-            cp "$dest" "$base_file"
+            copy_file "$dest" "$src" "$track_mode"
+            copy_file "$dest" "$base_file" "$track_mode"
             echo "Synced back: $dest -> $src"
             ;;
         both_changed)
-            # 両方が変更されている場合は base を祖先として3-wayマージする
-            local merged
+            # 実行ビットは2値なので、base から変わった側の値を採る
+            local x=""
+            if [ "$track_mode" -eq 1 ]; then
+                x="$(exec_bit "$dest")"
+                if [ "$x" = "$(exec_bit "$base_file")" ]; then
+                    x="$(exec_bit "$src")"
+                fi
+            fi
+
+            # 中身は、両側が同じならそのまま採り、違えば base を祖先として3-wayマージする
+            local merged merge_ok=1
             merged="$(mktemp)"
-            if git merge-file -p "$dest" "$base_file" "$src" > "$merged" 2>/dev/null; then
+            if cmp -s "$dest" "$src"; then
+                cat "$dest" > "$merged"
+            elif ! git merge-file -p "$dest" "$base_file" "$src" > "$merged" 2>/dev/null; then
+                merge_ok=0
+            fi
+
+            if [ "$merge_ok" -eq 1 ]; then
                 cp "$merged" "$dest"
                 cp "$merged" "$src"
                 cp "$merged" "$base_file"
                 rm -f "$merged"
+                if [ -n "$x" ]; then
+                    set_exec_bit "$dest" "$x"
+                    set_exec_bit "$src" "$x"
+                    set_exec_bit "$base_file" "$x"
+                fi
                 echo "Merged: $label"
             else
-                cp "$merged" "$conflict_file"
+                cat "$merged" > "$conflict_file"
                 rm -f "$merged"
+                if [ -n "$x" ]; then
+                    set_exec_bit "$conflict_file" "$x"
+                fi
                 echo "$label: merge conflict, resolve $conflict_file then run: $(basename "$0") resolve $key"
             fi
             ;;
@@ -434,7 +506,9 @@ list_copy_dir_files() {
 
 # copy.<対象> の各エントリをファイル単位に展開し、ファイルごとにコールバックを呼ぶ
 # ディレクトリエントリは中のファイルごとに展開し、片側での追加・削除も同期の対象にする
-# コールバックの引数: 対象, 種別, 表示名, [配置先, リポジトリ側, base ファイル, conflict ファイル, 削除追跡]
+# linux では実行ビットも同期の対象にする（windows は対象外）
+# コールバックの引数: 対象, 種別, 表示名,
+#   [配置先, リポジトリ側, base ファイル, conflict ファイル, 削除追跡, 実行ビット追跡]
 #   種別 file    : 同期対象のファイル（表示名は配置先の相対パスで、resolve のキーを兼ねる）
 #   種別 skipped : コマンドが配置先の環境にない
 #   種別 symlink : 配置先がシンボリックリンク
@@ -444,7 +518,9 @@ foreach_copy_file() {
     local target="$1"
     local callback="$2"
     local root cmd dest_rel src_rel dest src base
+    local track_mode=0
     root="$(copy_dest_root "$target")"
+    [ "$target" = linux ] && track_mode=1
 
     # コールバック内のコマンドが標準入力を読んでも対応表の読み込みに影響しないよう、fd 3 で読む
     while IFS=' ' read -r cmd dest_rel src_rel <&3; do
@@ -472,11 +548,11 @@ foreach_copy_file() {
             fi
             list_copy_dir_files "$dest" "$src" "$base" | while IFS= read -r rel; do
                 "$callback" "$target" file "$dest_rel/$rel" \
-                    "$dest/$rel" "$src/$rel" "$base/$rel.base" "$base/$rel.conflict" 1
+                    "$dest/$rel" "$src/$rel" "$base/$rel.base" "$base/$rel.conflict" 1 "$track_mode"
             done
         else
             "$callback" "$target" file "$dest_rel" \
-                "$dest" "$src" "$base.base" "$base.conflict" 0
+                "$dest" "$src" "$base.base" "$base.conflict" 0 "$track_mode"
         fi
     done 3< "$DOTFILES_PATH/copy.$target"
 }
@@ -490,7 +566,7 @@ _sync_copy_cb() {
         skipped) echo "[$target] $label: command not installed, skipping." ;;
         symlink) echo "[$target] $label: symbolic link, remove it manually to deploy as a copy, skipping." ;;
         notdir)  echo "[$target] $label: exists but is not a directory, skipping." ;;
-        file)    sync_file_3way "$4" "$5" "$6" "$7" "$label" "$8" ;;
+        file)    sync_file_3way "$4" "$5" "$6" "$7" "$label" "$8" "$9" ;;
     esac
 }
 
@@ -568,10 +644,14 @@ EOF
         exit 1
     fi
 
+    # linux では、conflict ファイルの実行ビットも反映する
+    local track_mode=0
+    [ "$target" = linux ] && track_mode=1
+
     mkdir -p "$(dirname "$dest")" "$(dirname "$src")"
-    cp "$conflict_file" "$dest"
-    cp "$conflict_file" "$src"
-    cp "$conflict_file" "$base_file"
+    copy_file "$conflict_file" "$dest" "$track_mode"
+    copy_file "$conflict_file" "$src" "$track_mode"
+    copy_file "$conflict_file" "$base_file" "$track_mode"
     rm -f "$conflict_file"
     echo "Resolved: $key"
 }
@@ -667,7 +747,7 @@ _status_copy_cb() {
         return
     fi
 
-    state="$(classify_3way "$4" "$5" "$6" "$7" "$8")"
+    state="$(classify_3way "$4" "$5" "$6" "$7" "$8" "$9")"
     case "$state" in
         conflict)              _status_add "${target}_conflict" "$label (resolve $label)" ;;
         deleted_dest_conflict) _status_add "${target}_delete_vs_change" "$label (removed on deployed side, changed in repository)" ;;
@@ -767,21 +847,62 @@ _path_or_null() {
     fi
 }
 
+# 実行ビットの有無を git の形式（100755 / 100644）で出力する
+_git_mode() {
+    if [ "$(exec_bit "$1")" -eq 1 ]; then
+        echo 100755
+    else
+        echo 100644
+    fi
+}
+
+# 2つのファイルの実行ビットが違えば、git と同じ形式で old mode / new mode の行を出力する
+# $1: 変更前, $2: 変更後, $3: 1 なら実行ビットを比べる
+_diff_mode() {
+    [ "$3" -eq 1 ] && [ -e "$1" ] && [ -e "$2" ] || return 0
+    local old new
+    old="$(_git_mode "$1")"
+    new="$(_git_mode "$2")"
+    if [ "$old" != "$new" ]; then
+        echo "old mode $old"
+        echo "new mode $new"
+    fi
+}
+
 # foreach_copy_file のコールバック: 1ファイルが未同期・衝突なら、base を基準にした diff を出力する
 # base がまだなく両側の中身が違う場合は、配置先とリポジトリ側の diff を出力する
+# 実行ビットを同期の対象にしている場合は、実行ビットの違いも出力する
 _diff_copy_cb() {
     local kind="$2"
     local label="$3"
     local dest="$4"
     local src="$5"
     local base_file="$6"
+    local track_mode="$9"
     local state
 
     [ "$kind" = file ] || return 0
-    state="$(classify_3way "$4" "$5" "$6" "$7" "$8")"
+    state="$(classify_3way "$4" "$5" "$6" "$7" "$8" "$9")"
+
+    # 同期の対象は実行ビットだけだが、気づけるように、配置先とリポジトリ側の
+    # パーミッション全体の違いも表示する（同期済みのファイルでも表示する）
+    local perm_line=""
+    if [ "$track_mode" -eq 1 ] && [ -e "$dest" ] && [ -e "$src" ]; then
+        local dest_perm src_perm
+        dest_perm="$(stat -c %a "$dest")"
+        src_perm="$(stat -c %a "$src")"
+        if [ "$dest_perm" != "$src_perm" ]; then
+            perm_line="permission differs: deployed $dest_perm, repository $src_perm"
+        fi
+    fi
 
     case "$state" in
         in_sync|not_deployed|no_baseline_same|missing|deleted_both)
+            if [ -n "$perm_line" ]; then
+                echo "=== permission differs: $label ==="
+                echo "$perm_line"
+                echo
+            fi
             return
             ;;
         no_baseline_differ)
@@ -790,21 +911,27 @@ _diff_copy_cb() {
         conflict) echo "=== conflict pending: $label (resolve $label) ===" ;;
         *)        echo "=== needs sync: $label ===" ;;
     esac
+    if [ -n "$perm_line" ]; then
+        echo "$perm_line"
+    fi
 
     # base がない（初めての同期）場合は、配置先とリポジトリ側を直接比べる
     if [ ! -e "$base_file" ] && [ -e "$dest" ] && [ -e "$src" ]; then
         echo "--- deployed vs repository ---"
+        _diff_mode "$dest" "$src" "$track_mode"
         diff -u --label "deployed: $label" --label "repository: $label" "$dest" "$src"
         echo
         return
     fi
-    if { [ -e "$dest" ] || [ -e "$base_file" ]; } && ! cmp -s "$dest" "$base_file"; then
+    if { [ -e "$dest" ] || [ -e "$base_file" ]; } && ! same_file "$dest" "$base_file" "$track_mode"; then
         echo "--- base vs deployed ---"
+        _diff_mode "$base_file" "$dest" "$track_mode"
         diff -u --label "base" --label "deployed: $label" \
             "$(_path_or_null "$base_file")" "$(_path_or_null "$dest")"
     fi
-    if { [ -e "$src" ] || [ -e "$base_file" ]; } && ! cmp -s "$src" "$base_file"; then
+    if { [ -e "$src" ] || [ -e "$base_file" ]; } && ! same_file "$src" "$base_file" "$track_mode"; then
         echo "--- base vs repository ---"
+        _diff_mode "$base_file" "$src" "$track_mode"
         diff -u --label "base" --label "repository: $label" \
             "$(_path_or_null "$base_file")" "$(_path_or_null "$src")"
     fi
