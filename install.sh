@@ -2,6 +2,7 @@
 
 DOTFILES_REPOSITORY=https://github.com/muushi97/dotfiles.git
 DOTFILES_PATH=~/dotfiles
+COPY_BASE_DIR="$DOTFILES_PATH/copy-base"
 
 # WSL 環境で Windows 側パス（/mnt/ 配下）を除外しながら、
 # 外部コマンドまたは組込みコマンドが存在するか確認する
@@ -135,12 +136,30 @@ https://gist.githubusercontent.com/k16shikano/eb2929f13ed19c97188393d297be8432/r
     done
 }
 
-# 事前ダウンロード済みの Claude Code スキルを ~/.claude/skills/ へリンクする
+# 事前ダウンロード済みの Claude Code スキルを ~/.claude/skills/ へ一方向にコピーする
+# 配置先での変更は書き戻さず、毎回 assets 側の内容で上書きする
 deploy_claude_skills() {
     local skill_dir="$DOTFILES_PATH/assets/claude/skills"
+
+    if ! exist_command claude; then
+        echo "claude is not installed, skipping."
+        return
+    fi
+
     mkdir -p ~/.claude/skills
     for d in "$skill_dir"/*/; do
-        create_link "claude" ".claude/skills/$(basename "$d")" "assets/claude/skills/$(basename "$d")"
+        [ -d "$d" ] || continue
+        local src="${d%/}"
+        local dest="$HOME/.claude/skills/$(basename "$src")"
+
+        if [ -L "$dest" ]; then
+            echo "$dest: symbolic link, remove it manually to deploy as a copy, skipping."
+            continue
+        fi
+
+        mkdir -p "$dest"
+        cp -r "$src/." "$dest/"
+        echo "Copied: $src -> $dest"
     done
 }
 
@@ -196,64 +215,84 @@ exist_win_command() {
     cmd.exe /c "where $1" > /dev/null 2>&1
 }
 
-# links.windows の dest パスから .base/.conflict ファイルのキーを作る
-win_deploy_key() {
-    printf '%s' "$1" | tr '/' '__'
+# コピー配置の対象（linux / windows）について、配置先の起点ディレクトリを出力する
+# $1: 対象
+copy_dest_root() {
+    case "$1" in
+        linux)   printf '%s\n' "$HOME" ;;
+        windows) resolve_win_home ;;
+    esac
 }
 
-# links.windows から指定キー（dest パス由来）に対応するエントリを探し、
-# "cmd dest src" を出力する
-find_win_link_entry() {
-    local key="$1"
-    while IFS=' ' read -r cmd dest src; do
-        case "$cmd" in
-            ''|\#*) continue ;;
-        esac
-        if [ "$(win_deploy_key "$dest")" = "$key" ]; then
-            printf '%s %s %s\n' "$cmd" "$dest" "$src"
-            return 0
-        fi
-    done < "$DOTFILES_PATH/links.windows"
-    return 1
+# コピー配置の対象について、コマンドが配置先の環境に存在するか確認する
+# $1: 対象, $2: コマンド名
+copy_exist_command() {
+    case "$1" in
+        linux)   exist_command "$2" ;;
+        windows) exist_win_command "$2" ;;
+    esac
 }
 
-# links.windows の1エントリについて、Windows側の配置先とリポジトリ側の src を
-# 前回同期時点（win-deploy-base/*.base）を基準に3-wayマージし、両方に反映する
-# $1: 依存コマンド名, $2: 配置先パス（Windows ホーム相対）, $3: リポジトリ側パス（DOTFILES_PATH 相対）
-sync_win_dotfile() {
-    local cmd="$1"
-    local dest_rel="$2"
-    local src_rel="$3"
-    local dest="$(resolve_win_home)/$dest_rel"
-    local src="$DOTFILES_PATH/$src_rel"
-    local base_dir="$DOTFILES_PATH/win-deploy-base"
-    local key
-    key="$(win_deploy_key "$dest_rel")"
-    local base_file="$base_dir/$key.base"
-    local conflict_file="$base_dir/$key.conflict"
-
-    if ! exist_win_command "$cmd"; then
-        echo "$cmd is not installed on Windows, skipping."
-        return
-    fi
+# 配置先・リポジトリ側を前回同期時点の base と比べて同期状態を分類し、状態名を出力する
+# $1: 配置先, $2: リポジトリ側, $3: base ファイル, $4: conflict ファイル,
+# $5: 1 なら片側での削除も同期の対象にする
+classify_3way() {
+    local dest="$1"
+    local src="$2"
+    local base_file="$3"
+    local conflict_file="$4"
+    local track_delete="$5"
 
     if [ -e "$conflict_file" ]; then
-        echo "$dest_rel: conflict pending, resolve it first: $(basename "$0") resolve-win $key"
+        echo conflict
         return
     fi
 
-    mkdir -p "$base_dir" "$(dirname "$dest")"
+    # base があるのに片側にないファイルは、その側で削除されたとみなす
+    if [ "$track_delete" -eq 1 ] && [ -e "$base_file" ]; then
+        if [ ! -e "$dest" ] && [ ! -e "$src" ]; then
+            echo deleted_both
+            return
+        fi
+        if [ ! -e "$dest" ]; then
+            if cmp -s "$src" "$base_file"; then
+                echo deleted_dest
+            else
+                echo deleted_dest_conflict
+            fi
+            return
+        fi
+        if [ ! -e "$src" ]; then
+            if cmp -s "$dest" "$base_file"; then
+                echo deleted_src
+            else
+                echo deleted_src_conflict
+            fi
+            return
+        fi
+    fi
 
     if [ ! -e "$dest" ]; then
-        cp "$src" "$dest"
-        cp "$src" "$base_file"
-        echo "Copied: $src -> $dest"
+        if [ -e "$src" ]; then
+            echo not_deployed
+        else
+            echo missing
+        fi
         return
     fi
 
+    if [ ! -e "$src" ]; then
+        echo new_dest
+        return
+    fi
+
+    # 初めての同期で両側にファイルがある場合、中身（と実行ビット）が違えば衝突として扱う
     if [ ! -e "$base_file" ]; then
-        cp "$dest" "$base_file"
-        echo "$dest_rel: baseline established from existing file, no merge performed this run."
+        if cmp -s "$dest" "$src"; then
+            echo no_baseline_same
+        else
+            echo no_baseline_differ
+        fi
         return
     fi
 
@@ -263,60 +302,265 @@ sync_win_dotfile() {
     cmp -s "$src" "$base_file" && src_changed=0
 
     if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 0 ]; then
-        return
-    fi
-
-    if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 1 ]; then
-        cp "$src" "$dest"
-        cp "$src" "$base_file"
-        echo "Updated: $src -> $dest"
-        return
-    fi
-
-    if [ "$dest_changed" -eq 1 ] && [ "$src_changed" -eq 0 ]; then
-        cp "$dest" "$src"
-        cp "$dest" "$base_file"
-        echo "Synced back: $dest -> $src"
-        return
-    fi
-
-    # 両方が変更されている場合は base を祖先として3-wayマージする
-    local merged
-    merged="$(mktemp)"
-    if git merge-file -p "$dest" "$base_file" "$src" > "$merged" 2>/dev/null; then
-        cp "$merged" "$dest"
-        cp "$merged" "$src"
-        cp "$merged" "$base_file"
-        rm -f "$merged"
-        echo "Merged: $dest_rel"
+        echo in_sync
+    elif [ "$dest_changed" -eq 0 ]; then
+        echo src_changed
+    elif [ "$src_changed" -eq 0 ]; then
+        echo dest_changed
     else
-        cp "$merged" "$conflict_file"
-        rm -f "$merged"
-        echo "$dest_rel: merge conflict, resolve $conflict_file then run: $(basename "$0") resolve-win $key"
+        echo both_changed
     fi
 }
 
-# links.windows を読んで Windows 側とリポジトリ側を同期する
-deploy_win_dotfiles() {
+# 1ファイルについて、配置先とリポジトリ側を前回同期時点の base を基準に3-wayマージし、
+# 両方に反映する
+# $1: 配置先, $2: リポジトリ側, $3: base ファイル, $4: conflict ファイル,
+# $5: resolve サブコマンドに渡すキー（配置先の相対パス）, $6: 1 なら片側での削除も同期する
+sync_file_3way() {
+    local dest="$1"
+    local src="$2"
+    local base_file="$3"
+    local conflict_file="$4"
+    local key="$5"
+    local track_delete="$6"
+    local label="$key"
+    local state
+    state="$(classify_3way "$dest" "$src" "$base_file" "$conflict_file" "$track_delete")"
+
+    mkdir -p "$(dirname "$base_file")"
+
+    case "$state" in
+        conflict)
+            echo "$label: conflict pending, resolve it first: $(basename "$0") resolve $key"
+            ;;
+        missing)
+            echo "$label: missing on both sides, skipping."
+            ;;
+        deleted_both)
+            rm -f "$base_file"
+            echo "$label: removed on both sides, baseline cleared."
+            ;;
+        deleted_dest)
+            rm -f "$src" "$base_file"
+            echo "Deleted: $src (removed on deployed side)"
+            ;;
+        deleted_src)
+            rm -f "$dest" "$base_file"
+            echo "Deleted: $dest (removed in repository)"
+            ;;
+        deleted_dest_conflict)
+            cp "$src" "$conflict_file"
+            echo "$label: removed on deployed side but changed in repository, edit $conflict_file then run: $(basename "$0") resolve [--delete] $key"
+            ;;
+        deleted_src_conflict)
+            cp "$dest" "$conflict_file"
+            echo "$label: removed in repository but changed on deployed side, edit $conflict_file then run: $(basename "$0") resolve [--delete] $key"
+            ;;
+        not_deployed)
+            mkdir -p "$(dirname "$dest")"
+            cp "$src" "$dest"
+            cp "$src" "$base_file"
+            echo "Copied: $src -> $dest"
+            ;;
+        new_dest)
+            mkdir -p "$(dirname "$src")"
+            cp "$dest" "$src"
+            cp "$dest" "$base_file"
+            echo "Copied back: $dest -> $src"
+            ;;
+        no_baseline_same)
+            cp "$dest" "$base_file"
+            echo "$label: baseline established (both sides identical)."
+            ;;
+        no_baseline_differ)
+            # 共通の祖先がないので、空ファイルを祖先として差分のある箇所に印を付ける
+            local empty
+            empty="$(mktemp)"
+            git merge-file -p "$dest" "$empty" "$src" > "$conflict_file" 2>/dev/null
+            rm -f "$empty"
+            echo "$label: no baseline and both sides differ, resolve $conflict_file then run: $(basename "$0") resolve $key"
+            ;;
+        in_sync)
+            ;;
+        src_changed)
+            cp "$src" "$dest"
+            cp "$src" "$base_file"
+            echo "Updated: $src -> $dest"
+            ;;
+        dest_changed)
+            cp "$dest" "$src"
+            cp "$dest" "$base_file"
+            echo "Synced back: $dest -> $src"
+            ;;
+        both_changed)
+            # 両方が変更されている場合は base を祖先として3-wayマージする
+            local merged
+            merged="$(mktemp)"
+            if git merge-file -p "$dest" "$base_file" "$src" > "$merged" 2>/dev/null; then
+                cp "$merged" "$dest"
+                cp "$merged" "$src"
+                cp "$merged" "$base_file"
+                rm -f "$merged"
+                echo "Merged: $label"
+            else
+                cp "$merged" "$conflict_file"
+                rm -f "$merged"
+                echo "$label: merge conflict, resolve $conflict_file then run: $(basename "$0") resolve $key"
+            fi
+            ;;
+    esac
+}
+
+# ディレクトリエントリについて、配置先・リポジトリ側・base のいずれかにある
+# ファイルの相対パスを重複なく出力する
+# $1: 配置先ディレクトリ, $2: リポジトリ側ディレクトリ, $3: base ディレクトリ
+list_copy_dir_files() {
+    local dest="$1"
+    local src="$2"
+    local base="$3"
+    {
+        if [ -d "$src" ]; then
+            (cd "$src" && find . -type f)
+        fi
+        if [ -d "$dest" ]; then
+            (cd "$dest" && find . -type f)
+        fi
+        if [ -d "$base" ]; then
+            (cd "$base" && find . -type f -name '*.base' | sed 's/\.base$//')
+            (cd "$base" && find . -type f -name '*.conflict' | sed 's/\.conflict$//')
+        fi
+    } | sed 's|^\./||' | sort -u
+}
+
+# copy.<対象> の各エントリをファイル単位に展開し、ファイルごとにコールバックを呼ぶ
+# ディレクトリエントリは中のファイルごとに展開し、片側での追加・削除も同期の対象にする
+# コールバックの引数: 対象, 種別, 表示名, [配置先, リポジトリ側, base ファイル, conflict ファイル, 削除追跡]
+#   種別 file    : 同期対象のファイル（表示名は配置先の相対パスで、resolve のキーを兼ねる）
+#   種別 skipped : コマンドが配置先の環境にない
+#   種別 symlink : 配置先がシンボリックリンク
+#   種別 notdir  : リポジトリ側はディレクトリだが、配置先がディレクトリでない
+# $1: 対象（linux / windows）, $2: コールバック関数名
+foreach_copy_file() {
+    local target="$1"
+    local callback="$2"
+    local root cmd dest_rel src_rel dest src base
+    root="$(copy_dest_root "$target")"
+
+    # コールバック内のコマンドが標準入力を読んでも対応表の読み込みに影響しないよう、fd 3 で読む
+    while IFS=' ' read -r cmd dest_rel src_rel <&3; do
+        case "$cmd" in
+            ''|\#*) continue ;;
+        esac
+        dest="$root/$dest_rel"
+        src="$DOTFILES_PATH/$src_rel"
+        base="$COPY_BASE_DIR/$target/$dest_rel"
+
+        if ! copy_exist_command "$target" "$cmd"; then
+            "$callback" "$target" skipped "$cmd -> $dest_rel"
+            continue
+        fi
+
+        if [ -L "$dest" ]; then
+            "$callback" "$target" symlink "$dest_rel"
+            continue
+        fi
+
+        if [ -d "$src" ] || [ -d "$dest" ]; then
+            if [ -e "$dest" ] && [ ! -d "$dest" ]; then
+                "$callback" "$target" notdir "$dest_rel"
+                continue
+            fi
+            list_copy_dir_files "$dest" "$src" "$base" | while IFS= read -r rel; do
+                "$callback" "$target" file "$dest_rel/$rel" \
+                    "$dest/$rel" "$src/$rel" "$base/$rel.base" "$base/$rel.conflict" 1
+            done
+        else
+            "$callback" "$target" file "$dest_rel" \
+                "$dest" "$src" "$base.base" "$base.conflict" 0
+        fi
+    done 3< "$DOTFILES_PATH/copy.$target"
+}
+
+# foreach_copy_file のコールバック: 1ファイルを同期する
+_sync_copy_cb() {
+    local target="$1"
+    local kind="$2"
+    local label="$3"
+    case "$kind" in
+        skipped) echo "[$target] $label: command not installed, skipping." ;;
+        symlink) echo "[$target] $label: symbolic link, remove it manually to deploy as a copy, skipping." ;;
+        notdir)  echo "[$target] $label: exists but is not a directory, skipping." ;;
+        file)    sync_file_3way "$4" "$5" "$6" "$7" "$label" "$8" ;;
+    esac
+}
+
+# copy.<対象> を読んで配置先とリポジトリ側を同期する
+# $1: 対象（linux / windows）
+deploy_copy_dotfiles() {
+    foreach_copy_file "$1" _sync_copy_cb
+}
+
+# copy.<対象> から、指定キー（配置先の相対パス）を含むエントリを探し、
+# "cmd dest src" を出力する
+# $1: 対象, $2: キー
+find_copy_entry() {
+    local key="$2"
+    local cmd dest src
     while IFS=' ' read -r cmd dest src; do
         case "$cmd" in
             ''|\#*) continue ;;
         esac
-        sync_win_dotfile "$cmd" "$dest" "$src"
-    done < "$DOTFILES_PATH/links.windows"
+        case "$key" in
+            "$dest"|"$dest"/*)
+                printf '%s %s %s\n' "$cmd" "$dest" "$src"
+                return 0
+                ;;
+        esac
+    done < "$DOTFILES_PATH/copy.$1"
+    return 1
 }
 
-# resolve-win サブコマンド: コンフリクトを解消したファイルを配置先・リポジトリ側の両方へ反映する
-# $1: win_deploy_key で得られるキー
-cmd_resolve_win() {
+# resolve サブコマンド: コンフリクトを解消したファイルを配置先・リポジトリ側の両方へ反映する
+# 削除する場合は、配置先・リポジトリ側の両方から削除する
+# $1: キー（配置先の相対パス）, $2: 1 なら削除する
+cmd_resolve() {
     local key="$1"
-    local base_dir="$DOTFILES_PATH/win-deploy-base"
-    local conflict_file="$base_dir/$key.conflict"
-    local base_file="$base_dir/$key.base"
+    local delete="$2"
+    local target="" t
+    local conflict_file base_file dest src entry
+    local cmd dest_rel src_rel
 
-    if [ ! -e "$conflict_file" ]; then
-        echo "$key: no pending conflict ($conflict_file not found)" >&2
+    for t in linux windows; do
+        if [ -e "$COPY_BASE_DIR/$t/$key.conflict" ]; then
+            if [ -n "$target" ]; then
+                echo "$key: ambiguous, pending conflicts found for both linux and windows" >&2
+                exit 1
+            fi
+            target="$t"
+        fi
+    done
+
+    if [ -z "$target" ]; then
+        echo "$key: no pending conflict" >&2
         exit 1
+    fi
+
+    if ! entry="$(find_copy_entry "$target" "$key")"; then
+        echo "$key: no matching entry in copy.$target" >&2
+        exit 1
+    fi
+    read -r cmd dest_rel src_rel <<EOF
+$entry
+EOF
+    conflict_file="$COPY_BASE_DIR/$target/$key.conflict"
+    base_file="$COPY_BASE_DIR/$target/$key.base"
+    dest="$(copy_dest_root "$target")/$key"
+    src="$DOTFILES_PATH/$src_rel${key#"$dest_rel"}"
+
+    if [ "$delete" -eq 1 ]; then
+        rm -f "$dest" "$src" "$base_file" "$conflict_file"
+        echo "Resolved (deleted): $key"
+        return
     fi
 
     if grep -q '^<<<<<<<' "$conflict_file"; then
@@ -324,18 +568,7 @@ cmd_resolve_win() {
         exit 1
     fi
 
-    local entry
-    if ! entry="$(find_win_link_entry "$key")"; then
-        echo "$key: no matching entry in links.windows" >&2
-        exit 1
-    fi
-    local cmd dest_rel src_rel
-    read -r cmd dest_rel src_rel <<EOF
-$entry
-EOF
-    local dest="$(resolve_win_home)/$dest_rel"
-    local src="$DOTFILES_PATH/$src_rel"
-
+    mkdir -p "$(dirname "$dest")" "$(dirname "$src")"
     cp "$conflict_file" "$dest"
     cp "$conflict_file" "$src"
     cp "$conflict_file" "$base_file"
@@ -351,22 +584,28 @@ cmd_prepare() {
     fi
 }
 
-# シンボリックリンクを張り、vim プラグインと git 補完スクリプトをインストールする
-# WSL 環境では Windows 側へのコピーも行う
+# シンボリックリンクを張り、copy.linux を同期し、vim プラグインと git 補完スクリプトをインストールする
+# WSL 環境では copy.windows の同期と、Windows 側へのフォントのコピーも行う
 cmd_apply() {
     link_dotfiles
+    deploy_copy_dotfiles linux
     #install_vim_plugins
     #install_git_completion
     deploy_claude_skills
     if is_wsl; then
-        deploy_win_dotfiles
+        deploy_copy_dotfiles windows
         deploy_wezterm_fonts
     fi
 }
 
-# シンボリックリンクを更新し、vim プラグインを最新化する
+# シンボリックリンクを更新し、copy.linux を同期し、vim プラグインを最新化する
+# WSL 環境では copy.windows の同期も行う
 cmd_update() {
     link_dotfiles
+    deploy_copy_dotfiles linux
+    if is_wsl; then
+        deploy_copy_dotfiles windows
+    fi
     #update_vim_plugins
 }
 
@@ -415,55 +654,51 @@ check_link_status_linux() {
     done < "$DOTFILES_PATH/links.linux"
 }
 
-# links.windows の各エントリについて、sync_win_dotfile と同じ基準で
-# 同期状態を副作用なしに分類する
-check_link_status_windows() {
-    while IFS=' ' read -r cmd dest src; do
-        case "$cmd" in
-            ''|\#*) continue ;;
-        esac
-        local dest_path="$(resolve_win_home)/$dest"
-        local src_path="$DOTFILES_PATH/$src"
-        local key base_file conflict_file
-        key="$(win_deploy_key "$dest")"
-        base_file="$DOTFILES_PATH/win-deploy-base/$key.base"
-        conflict_file="$DOTFILES_PATH/win-deploy-base/$key.conflict"
+# foreach_copy_file のコールバック: sync_file_3way と同じ基準で、1ファイルの同期状態を
+# 副作用なしに分類して status の結果に追記する
+_status_copy_cb() {
+    local target="$1"
+    local kind="$2"
+    local label="$3"
+    local state
 
-        if ! exist_win_command "$cmd"; then
-            _status_add win_skipped "$cmd -> $dest"
-            continue
-        fi
+    if [ "$kind" != file ]; then
+        _status_add "${target}_$kind" "$label"
+        return
+    fi
 
-        if [ -e "$conflict_file" ]; then
-            _status_add win_conflict "$dest (resolve-win $key)"
-            continue
-        fi
+    state="$(classify_3way "$4" "$5" "$6" "$7" "$8")"
+    case "$state" in
+        conflict)              _status_add "${target}_conflict" "$label (resolve $label)" ;;
+        deleted_dest_conflict) _status_add "${target}_delete_vs_change" "$label (removed on deployed side, changed in repository)" ;;
+        deleted_src_conflict)  _status_add "${target}_delete_vs_change" "$label (removed in repository, changed on deployed side)" ;;
+        *)                     _status_add "${target}_$state" "$label" ;;
+    esac
+}
 
-        if [ ! -e "$dest_path" ]; then
-            _status_add win_not_deployed "$dest"
-            continue
-        fi
-
-        if [ ! -e "$base_file" ]; then
-            _status_add win_no_baseline "$dest"
-            continue
-        fi
-
-        local dest_changed=1
-        local src_changed=1
-        cmp -s "$dest_path" "$base_file" && dest_changed=0
-        cmp -s "$src_path" "$base_file" && src_changed=0
-
-        if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 0 ]; then
-            _status_add win_in_sync "$dest"
-        elif [ "$dest_changed" -eq 0 ]; then
-            _status_add win_needs_sync_src "$dest (repository side changed)"
-        elif [ "$src_changed" -eq 0 ]; then
-            _status_add win_needs_sync_dest "$dest (deployed side changed)"
-        else
-            _status_add win_needs_sync_both "$dest (both sides changed, will attempt auto-merge)"
-        fi
-    done < "$DOTFILES_PATH/links.windows"
+# copy.<対象> の同期状態を分類して見出し付きで表示する
+# $1: 対象（linux / windows）
+print_copy_status() {
+    local t="$1"
+    foreach_copy_file "$t" _status_copy_cb
+    echo "[copy.$t]"
+    _status_print "In sync:" "${t}_in_sync"
+    _status_print "Needs sync (repository side changed):" "${t}_src_changed"
+    _status_print "Needs sync (deployed side changed):" "${t}_dest_changed"
+    _status_print "Needs sync (both sides changed, will attempt auto-merge):" "${t}_both_changed"
+    _status_print "Needs sync (added on deployed side):" "${t}_new_dest"
+    _status_print "Needs sync (removed on deployed side):" "${t}_deleted_dest"
+    _status_print "Needs sync (removed in repository):" "${t}_deleted_src"
+    _status_print "Needs sync (removed on one side, changed on the other; will conflict):" "${t}_delete_vs_change"
+    _status_print "Removed on both sides (baseline only):" "${t}_deleted_both"
+    _status_print "Conflict pending:" "${t}_conflict"
+    _status_print "Not deployed:" "${t}_not_deployed"
+    _status_print "Missing on both sides:" "${t}_missing"
+    _status_print "No baseline yet, both sides identical (baseline will be created):" "${t}_no_baseline_same"
+    _status_print "No baseline yet, both sides differ (will conflict):" "${t}_no_baseline_differ"
+    _status_print "Symbolic link (remove it manually to deploy as a copy):" "${t}_symlink"
+    _status_print "Not a directory on deployed side:" "${t}_notdir"
+    _status_print "Skipped (command not installed):" "${t}_skipped"
 }
 
 # dotfiles のリンク・同期状態を git status のようにグループ分けして表示する
@@ -478,17 +713,10 @@ cmd_status() {
     _status_print "Conflict (existing file is not our symlink):" conflict
     _status_print "Skipped (command not installed):" skipped
 
+    print_copy_status linux
+
     if is_wsl; then
-        check_link_status_windows
-        echo "[links.windows]"
-        _status_print "In sync:" win_in_sync
-        _status_print "Needs sync (repository side changed):" win_needs_sync_src
-        _status_print "Needs sync (deployed side changed):" win_needs_sync_dest
-        _status_print "Needs sync (both sides changed):" win_needs_sync_both
-        _status_print "Conflict pending:" win_conflict
-        _status_print "Not deployed:" win_not_deployed
-        _status_print "No baseline yet (run apply once):" win_no_baseline
-        _status_print "Skipped (command not installed on Windows):" win_skipped
+        print_copy_status windows
     fi
 
     rm -rf "$STATUS_TMP_DIR"
@@ -530,64 +758,57 @@ diff_conflicts_linux() {
     done < "$DOTFILES_PATH/links.linux"
 }
 
-# links.windows の Needs sync / Conflict pending エントリについて
-# base を基準にした diff を出力先ファイルへ書き出す
-# $1: 出力先ファイル
-diff_pending_windows() {
-    local out="$1"
-    while IFS=' ' read -r cmd dest src; do
-        case "$cmd" in
-            ''|\#*) continue ;;
-        esac
-        local dest_path="$(resolve_win_home)/$dest"
-        local src_path="$DOTFILES_PATH/$src"
-        local key base_file conflict_file
-        key="$(win_deploy_key "$dest")"
-        base_file="$DOTFILES_PATH/win-deploy-base/$key.base"
-        conflict_file="$DOTFILES_PATH/win-deploy-base/$key.conflict"
+# ファイルがあればそのパスを、なければ /dev/null を出力する（diff の引数用）
+_path_or_null() {
+    if [ -e "$1" ]; then
+        printf '%s\n' "$1"
+    else
+        echo /dev/null
+    fi
+}
 
-        if ! exist_win_command "$cmd"; then
-            continue
-        fi
+# foreach_copy_file のコールバック: 1ファイルが未同期・衝突なら、base を基準にした diff を出力する
+# base がまだなく両側の中身が違う場合は、配置先とリポジトリ側の diff を出力する
+_diff_copy_cb() {
+    local kind="$2"
+    local label="$3"
+    local dest="$4"
+    local src="$5"
+    local base_file="$6"
+    local state
 
-        if [ -e "$conflict_file" ]; then
-            {
-                echo "=== conflict pending: $dest (resolve-win $key) ==="
-                echo "--- base vs deployed ---"
-                diff -u --label "base" --label "deployed: $dest" "$base_file" "$dest_path"
-                echo "--- base vs repository ---"
-                diff -u --label "base" --label "repository: $src" "$base_file" "$src_path"
-                echo
-            } >> "$out"
-            continue
-        fi
+    [ "$kind" = file ] || return 0
+    state="$(classify_3way "$4" "$5" "$6" "$7" "$8")"
 
-        if [ ! -e "$dest_path" ] || [ ! -e "$base_file" ]; then
-            continue
-        fi
+    case "$state" in
+        in_sync|not_deployed|no_baseline_same|missing|deleted_both)
+            return
+            ;;
+        no_baseline_differ)
+            echo "=== needs sync: $label (no baseline, will conflict) ==="
+            ;;
+        conflict) echo "=== conflict pending: $label (resolve $label) ===" ;;
+        *)        echo "=== needs sync: $label ===" ;;
+    esac
 
-        local dest_changed=1
-        local src_changed=1
-        cmp -s "$dest_path" "$base_file" && dest_changed=0
-        cmp -s "$src_path" "$base_file" && src_changed=0
-
-        if [ "$dest_changed" -eq 0 ] && [ "$src_changed" -eq 0 ]; then
-            continue
-        fi
-
-        {
-            echo "=== needs sync: $dest ==="
-            if [ "$dest_changed" -eq 1 ]; then
-                echo "--- base vs deployed ---"
-                diff -u --label "base" --label "deployed: $dest" "$base_file" "$dest_path"
-            fi
-            if [ "$src_changed" -eq 1 ]; then
-                echo "--- base vs repository ---"
-                diff -u --label "base" --label "repository: $src" "$base_file" "$src_path"
-            fi
-            echo
-        } >> "$out"
-    done < "$DOTFILES_PATH/links.windows"
+    # base がない（初めての同期）場合は、配置先とリポジトリ側を直接比べる
+    if [ ! -e "$base_file" ] && [ -e "$dest" ] && [ -e "$src" ]; then
+        echo "--- deployed vs repository ---"
+        diff -u --label "deployed: $label" --label "repository: $label" "$dest" "$src"
+        echo
+        return
+    fi
+    if { [ -e "$dest" ] || [ -e "$base_file" ]; } && ! cmp -s "$dest" "$base_file"; then
+        echo "--- base vs deployed ---"
+        diff -u --label "base" --label "deployed: $label" \
+            "$(_path_or_null "$base_file")" "$(_path_or_null "$dest")"
+    fi
+    if { [ -e "$src" ] || [ -e "$base_file" ]; } && ! cmp -s "$src" "$base_file"; then
+        echo "--- base vs repository ---"
+        diff -u --label "base" --label "repository: $label" \
+            "$(_path_or_null "$base_file")" "$(_path_or_null "$src")"
+    fi
+    echo
 }
 
 # dotfiles の未同期・衝突エントリについて具体的な内容差分を表示する
@@ -603,15 +824,19 @@ cmd_diff() {
         cat "$linux_out"
     fi
 
+    local targets="linux"
     if is_wsl; then
-        local win_out="$DIFF_TMP_DIR/windows"
-        : > "$win_out"
-        diff_pending_windows "$win_out"
-        if [ -s "$win_out" ]; then
-            echo "[links.windows]"
-            cat "$win_out"
-        fi
+        targets="linux windows"
     fi
+    local t
+    for t in $targets; do
+        local copy_out="$DIFF_TMP_DIR/copy.$t"
+        foreach_copy_file "$t" _diff_copy_cb > "$copy_out"
+        if [ -s "$copy_out" ]; then
+            echo "[copy.$t]"
+            cat "$copy_out"
+        fi
+    done
 
     rm -rf "$DIFF_TMP_DIR"
     trap - EXIT
@@ -619,7 +844,7 @@ cmd_diff() {
 
 # links ファイル内の各コマンドの存在をチェックして結果を表示する
 cmd_check() {
-    awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.linux" | sort -u | \
+    awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.linux" "$DOTFILES_PATH/copy.linux" | sort -u | \
         while IFS= read -r cmd; do
             if exist_command "$cmd"; then
                 echo "[ installed ] $cmd"
@@ -629,7 +854,7 @@ cmd_check() {
         done
 
     if is_wsl; then
-        awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/links.windows" | sort -u | \
+        awk '!/^[[:space:]]*(#|$)/ { print $1 }' "$DOTFILES_PATH/copy.windows" | sort -u | \
             while IFS= read -r cmd; do
                 if exist_win_command "$cmd"; then
                     echo "[ installed ] $cmd (win)"
@@ -645,15 +870,16 @@ usage() {
 Usage: $(basename "$0") <subcommand>
 
 Subcommands:
-  clone               リポジトリを ~/dotfiles へ clone する
-  prepare             必要なファイルを事前ダウンロード・生成する（WSL では wezterm フォントも取得）
-  apply               dotfiles を環境へ適用する（WSL 環境では Windows 側も対象）
-  update              dotfiles を更新する
-  check               各コマンドのインストール状況を確認する
-  status              dotfiles のリンク・同期状態を確認する
-  diff                未同期・衝突エントリの内容差分を表示する
-  resolve-win <key>   Windows側配置ファイルのマージコンフリクトを解消する
-  help                この使い方を表示する
+  clone                   リポジトリを ~/dotfiles へ clone する
+  prepare                 必要なファイルを事前ダウンロード・生成する（WSL では wezterm フォントも取得）
+  apply                   dotfiles を環境へ適用する（WSL 環境では Windows 側も対象）
+  update                  dotfiles を更新する
+  check                   各コマンドのインストール状況を確認する
+  status                  dotfiles のリンク・同期状態を確認する
+  diff                    未同期・衝突エントリの内容差分を表示する
+  resolve <key>           同期のコンフリクトを解消した内容を、配置先とリポジトリ側の両方へ反映する
+  resolve --delete <key>  削除と変更のコンフリクトを、配置先とリポジトリ側の両方から削除して解消する
+  help                    この使い方を表示する
 EOF
 }
 
@@ -674,9 +900,16 @@ case "$#" in
         ;;
     2)
         case "$1" in
-            resolve-win) cmd_resolve_win "$2" ;;
-            *)           usage >&2; exit 1 ;;
+            resolve) cmd_resolve "$2" 0 ;;
+            *)       usage >&2; exit 1 ;;
         esac
+        ;;
+    3)
+        if [ "$1" = resolve ] && [ "$2" = --delete ]; then
+            cmd_resolve "$3" 1
+        else
+            usage >&2; exit 1
+        fi
         ;;
     *) usage >&2; exit 1 ;;
 esac

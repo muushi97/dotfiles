@@ -1,0 +1,5 @@
+# command  dest ($HOME 相対)                         src (DOTFILES_PATH 相対)
+claude      .claude/settings.json                    claude/settings.json
+claude      .claude/CLAUDE.md                        claude/CLAUDE.md
+claude      .claude/skills/japanese-rule-drafting    claude/skills/japanese-rule-drafting
+claude      .claude/skills/research                  claude/skills/research

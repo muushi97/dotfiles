@@ -1,3 +1,4 @@
 *.bak
 assets/
 win-deploy-base/
+copy-base/
