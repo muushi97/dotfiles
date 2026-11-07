@@ -215,8 +215,9 @@ resolve_win_home() {
 }
 
 # Windows 側の PATH にコマンドが存在するか確認する
+# cmd.exe は標準入力を読み切るので、呼び出し元のループの入力を消費しないよう /dev/null をつなぐ
 exist_win_command() {
-    cmd.exe /c "where $1" > /dev/null 2>&1
+    cmd.exe /c "where $1" < /dev/null > /dev/null 2>&1
 }
 
 # コピー配置の対象（linux / windows）について、配置先の起点ディレクトリを出力する
