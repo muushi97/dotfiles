@@ -75,3 +75,8 @@ shopt -s histappend
 # check the window size after each command and, if necessary,
 # update the values of LINES and COLUMNS.
 shopt -s checkwinsize
+
+# elan (Lean のツールチェーン管理) の環境を読込む
+if [[ -d $HOME/.elan ]]; then
+    source "$HOME/.elan/env"
+fi
