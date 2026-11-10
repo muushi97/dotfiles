@@ -11,9 +11,6 @@ alias ls='ls --color=auto'
 #alias mv='mv -i'
 #alias cp='cp -i'
 
-# history にコマンドの実行日時を記録するようにする
-HISTTIMEFORMAT='%Y-%m-%dT%T%z '
-
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
@@ -65,8 +62,8 @@ export PATH=$PATH:~/.local/bin
 # sudoedit is vim
 export EDITOR=vim
 
-export HISTSIZE=10000
-export HISTFILESIZE=10000
+export HISTSIZE=100000
+export HISTFILESIZE=100000
 export HISTCONTROL=ignoredups
 
 # append to the history file, don't overwrite it
